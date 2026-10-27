@@ -97,6 +97,11 @@
   .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--today)); }
   .range { text-align: right; font-variant-numeric: tabular-nums; }
   .range span { color: var(--muted); }
+  /* 새로고침 */
+  .ptr { position: fixed; top: env(safe-area-inset-top, 0); left: 50%; transform: translate(-50%, -48px); padding: 8px 16px; border-radius: 99px; background: var(--card); color: var(--text); box-shadow: 0 4px 16px rgba(0,0,0,.18); font-size: 13px; font-weight: 600; opacity: 0; z-index: 30; pointer-events: none; white-space: nowrap; }
+  #refresh.spin { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* 즐겨찾기 */
   .favs { display: flex; gap: 8px; flex-wrap: wrap; }
   .favs:empty { display: none; }
@@ -153,15 +158,17 @@
 </style>
 </head>
 <body>
+<div class="ptr" id="ptr">↓ 당겨서 새로고침</div>
 <main>
   <div class="search">
     <input id="q" type="search" placeholder="도시 검색 (예: 부산, 제주, Tokyo)" autocomplete="off">
     <button class="btn" id="gps">📍 내 위치</button>
+    <button class="btn" id="refresh" title="새로고침" aria-label="새로고침">🔄</button>
     <ul class="results" id="results" hidden></ul>
   </div>
   <div class="favs" id="favs"></div>
   <div id="app"><div class="status">날씨를 불러오는 중…</div></div>
-  <footer>데이터: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · 미세먼지 등급은 국내 기준</footer>
+  <footer>데이터: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · 미세먼지 등급은 국내 기준<span id="upd"></span></footer>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -227,6 +234,7 @@ function outfitHTML(c, d, aqGrade) {
 }
 
 let here = null;
+let lastLoad = Date.now();
 const $favs = document.getElementById('favs');
 const getFavs = () => { try { return JSON.parse(localStorage.getItem('favs')) || []; } catch (e) { return []; } };
 const setFavs = f => { try { localStorage.setItem('favs', JSON.stringify(f)); } catch (e) {} };
@@ -464,6 +472,8 @@ async function load(lat, lon, name) {
     const a = getJSON('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lat + '&longitude=' + lon +
       '&current=pm10,pm2_5,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide&timezone=auto').catch(() => null);
     render(await w, await a, name);
+    lastLoad = Date.now();
+    document.getElementById('upd').textContent = ' · ' + new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' }) + ' 업데이트';
     try { localStorage.setItem('loc', JSON.stringify({ lat, lon, name })); } catch (e) {}
   } catch (e) {
     $app.innerHTML = '<div class="status">날씨를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>';
@@ -699,6 +709,33 @@ function useGPS() {
   );
 }
 document.getElementById('gps').addEventListener('click', useGPS);
+
+// 새로고침: 버튼, 당겨서 새로고침, 앱으로 돌아왔을 때 10분 지났으면 자동. 페이지를 통째로 다시 받아서 새 버전도 함께 받음
+const reload = () => location.reload();
+document.getElementById('refresh').addEventListener('click', e => { e.currentTarget.classList.add('spin'); reload(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastLoad > 10 * 60 * 1000) reload();
+});
+(function pullToRefresh() {
+  const $ptr = document.getElementById('ptr'), LIMIT = 130;
+  let y0 = null;
+  document.addEventListener('touchstart', e => { y0 = window.scrollY <= 0 ? e.touches[0].clientY : null; }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (y0 === null) return;
+    const dy = e.touches[0].clientY - y0;
+    if (dy <= 0) return;
+    $ptr.textContent = dy > LIMIT ? '↑ 놓으면 새로고침' : '↓ 당겨서 새로고침';
+    $ptr.style.opacity = Math.min(dy / 80, 1);
+    $ptr.style.transform = 'translate(-50%, ' + (Math.min(dy / 2.5, 64) - 48) + 'px)';
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (y0 === null) return;
+    const dy = e.changedTouches[0].clientY - y0;
+    y0 = null;
+    if (dy > LIMIT) { $ptr.textContent = '새로고침 중…'; $ptr.style.transform = 'translate(-50%, 16px)'; reload(); return; }
+    $ptr.style.opacity = 0; $ptr.style.transform = 'translate(-50%, -48px)';
+  }, { passive: true });
+})();
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
