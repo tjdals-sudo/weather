@@ -150,8 +150,6 @@
   .sun { display: flex; gap: 24px; font-size: 14px; color: var(--muted); }
   .sun b { color: var(--text); }
   .status { text-align: center; color: var(--muted); padding: 40px 0; }
-  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0 24px; }
-  footer a { color: inherit; }
   @media (max-width: 520px) {
     .day { grid-template-columns: 44px 28px 1fr 44px 86px; gap: 6px; font-size: 13px; }
   }
@@ -168,7 +166,6 @@
   </div>
   <div class="favs" id="favs"></div>
   <div id="app"><div class="status">날씨를 불러오는 중…</div></div>
-  <footer>데이터: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · 미세먼지 등급은 국내 기준<span id="upd"></span></footer>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -473,7 +470,6 @@ async function load(lat, lon, name) {
       '&current=pm10,pm2_5,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide&timezone=auto').catch(() => null);
     render(await w, await a, name);
     lastLoad = Date.now();
-    document.getElementById('upd').textContent = ' · ' + new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' }) + ' 업데이트';
     try { localStorage.setItem('loc', JSON.stringify({ lat, lon, name })); } catch (e) {}
   } catch (e) {
     $app.innerHTML = '<div class="status">날씨를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>';
