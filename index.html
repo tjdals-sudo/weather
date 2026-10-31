@@ -305,54 +305,79 @@ function rainBanner(h, t0, hour, c) {
   return null;
 }
 
-// 채널 최신 영상(2026-10 기준)을 날씨 분위기별로 분류. q는 채널 내 검색어
-const JAZZ = {
-  sunny: { msg: '맑은 날엔 낙엽 밟으며 듣기 좋은 재즈', q: '가을', v: [
-    ['kY3omHEHGCk', '노랗게 물든 가을 거리, 이런 빈티지 재즈 하나면 충분해'],
-    ['mzj-BS_IRDM', '가을이 내려앉은 공원, 조용한 재즈 한 곡이면 충분해'],
-    ['paaXvjTD2gg', '가을 나무 아래, 조용히 흐르는 빈티지 재즈'],
-    ['9wicCc5rAQI', '파리의 가을 거리, 여유롭게 흐르는 빈티지 재즈']] },
-  cloudy: { msg: '흐린 날엔 커피 한 잔과 잔잔한 재즈', q: '커피', v: [
-    ['ayOebQNDtTQ', '오래된 서점 앞, 커피 한 잔과 잔잔한 가을 재즈'],
-    ['NPzhNs-eqOo', '가을이 스며드는 런던, 천천히 흐르는 빈티지 재즈'],
-    ['Moz9MApiMvc', '런던의 가을, 빈티지 재즈로 물드는 거리'],
-    ['0t-hXg_nD-Q', '파리 거리 카페에 앉아, 조용히 책장을 넘기는 오후']] },
-  fog: { msg: '안개 낀 날엔 고요한 재즈', q: '안개', v: [
-    ['GwM8P6JrXog', '안개 낀 가을, 괜히 고요한 재즈가 더 좋아져'],
-    ['e-IbGNGaPso', '오늘은 아무 생각 안 할래, 이런 가을 재즈 들으면 시간 가는 줄 몰라'],
-    ['7_3VD1WfSy0', '뉴욕의 가을이 깊어질수록, 재즈는 더 짙어져']] },
-  rain: { msg: '비 오는 날엔 카페에서 듣는 재즈', q: '비', v: [
-    ['i0uGm-TKdkc', '커피 향 가득한 카페, 이런 빈티지 재즈가 괜히 더 좋아져'],
-    ['gYjEsuOyYGk', '아니, 가을 카페에서 이런 재즈 들으면 너무 좋잖아'],
-    ['DoXK6jO94zw', '노랗게 물든 가을, 커피 한 잔과 고요한 재즈면 충분해'],
-    ['wkez7heh9O4', '피렌체의 오래된 골목 카페, 커피 한 잔과 빈티지 재즈']] },
-  snow: { msg: '눈 오는 날엔 포근한 재즈', q: '크리스마스', v: [
-    ['2VtkeHYQNOk', '크리스마스가 가까워질수록, 이런 빈티지 재즈가 더 좋아져'],
-    ['xmixW2TCay0', '유럽의 조용한 카페, 잠시 쉬어가는 빈티지 재즈'],
-    ['i0uGm-TKdkc', '커피 향 가득한 카페, 이런 빈티지 재즈가 괜히 더 좋아져']] },
-  cold: { msg: '추운 날엔 따뜻한 크리스마스 재즈', q: '크리스마스', v: [
-    ['2VtkeHYQNOk', '크리스마스가 가까워질수록, 이런 빈티지 재즈가 더 좋아져'],
-    ['xmixW2TCay0', '유럽의 조용한 카페, 잠시 쉬어가는 빈티지 재즈'],
-    ['ayOebQNDtTQ', '오래된 서점 앞, 커피 한 잔과 잔잔한 가을 재즈']] },
-  night: { msg: '밤엔 불 켜진 창가의 재즈', q: '저녁', v: [
-    ['kUb-kFsqZSE', '하루가 저물수록, 이런 빈티지 재즈가 더 좋더라'],
-    ['hAgsh6ruDjc', '파리의 저녁, 불 켜진 창가의 빈티지 재즈'],
-    ['dzoE35A0cHU', '프라하의 저녁, 강물 위로 번지는 빈티지 재즈']] },
-  hot: { msg: '더운 날엔 그늘 아래 느긋한 재즈', q: '정원', v: [
-    ['Sh0aziCM-FE', '숲이 가까운 조용한 창가, 나만의 시간을 보내는 빈티지 재즈'],
-    ['ro_aKNSIU58', '정원 한켠에 앉아, 느긋하게 쉬어가는 빈티지 재즈'],
-    ['9wicCc5rAQI', '파리의 가을 거리, 여유롭게 흐르는 빈티지 재즈']] }
+// @JazzRecording 채널 영상 (2026-10-31 기준 최신 30개 + 여름용 2개)
+const VIDS = {
+  'IjflmgsPlp8': '크리스마스 불빛이 번지는 파리의 밤, 이런 빈티지 재즈가 더 좋아져',
+  'cT_y2xek7JU': '크리스마스를 기다리는 시간, 이런 빈티지 재즈가 유난히 좋더라',
+  '2VtkeHYQNOk': '크리스마스가 가까워질수록, 이런 빈티지 재즈가 더 좋아져',
+  'kUb-kFsqZSE': '하루가 저물수록, 이런 빈티지 재즈가 더 좋더라',
+  'i0uGm-TKdkc': '커피 향 가득한 카페, 이런 빈티지 재즈가 괜히 더 좋아져',
+  'vVN_Syplds4': '파리의 가을, 이런 빈티지 재즈가 왜 이렇게 잘 어울려',
+  '0kDeyEj7-wM': '파리 강변의 가을, 이런 빈티지 재즈면 낭만이 더 깊어져',
+  'kY3omHEHGCk': '노랗게 물든 가을 거리, 이런 빈티지 재즈 하나면 충분해',
+  'e-IbGNGaPso': '오늘은 아무 생각 안 할래, 이런 가을 재즈 들으면 시간 가는 줄 몰라',
+  'gYjEsuOyYGk': '아니, 가을 카페에서 이런 재즈 들으면 너무 좋잖아',
+  'DoXK6jO94zw': '노랗게 물든 가을, 커피 한 잔과 고요한 재즈면 충분해',
+  'ayOebQNDtTQ': '오래된 서점 앞, 커피 한 잔과 잔잔한 가을 재즈',
+  '7_3VD1WfSy0': '뉴욕의 가을이 깊어질수록, 재즈는 더 짙어져',
+  'rRpQ2DlC3R4': '가을, 이 재즈 하나면 분위기 충분해',
+  'mzj-BS_IRDM': '가을이 내려앉은 공원, 조용한 재즈 한 곡이면 충분해',
+  'SM_ELKVMA44': '가을 카페에 앉아, 오늘은 이런 재즈가 듣고 싶어',
+  'GwM8P6JrXog': '안개 낀 가을, 괜히 고요한 재즈가 더 좋아져',
+  'nvpIAYZZrAk': '가을이니까, 오늘은 이런 재즈가 필요해',
+  'lAjUgy12WIs': '가을이 깊어지는 순간, 이런 재즈가 잘 어울려',
+  'mVsP7xI3ylc': '가을만 되면, 괜히 이런 재즈가 듣고 싶어져',
+  'slrmlfHKeGg': '파리의 어느 골목, 가을이 스며드는 빈티지 재즈',
+  '9wicCc5rAQI': '파리의 가을 거리, 여유롭게 흐르는 빈티지 재즈',
+  'paaXvjTD2gg': '가을 나무 아래, 조용히 흐르는 빈티지 재즈',
+  'NPzhNs-eqOo': '가을이 스며드는 런던, 천천히 흐르는 빈티지 재즈',
+  'Moz9MApiMvc': '런던의 가을, 빈티지 재즈로 물드는 거리',
+  '0t-hXg_nD-Q': '파리 거리 카페에 앉아, 조용히 책장을 넘기는 오후',
+  'hAgsh6ruDjc': '파리의 저녁, 불 켜진 창가의 빈티지 재즈',
+  'dzoE35A0cHU': '프라하의 저녁, 강물 위로 번지는 빈티지 재즈',
+  'wkez7heh9O4': '피렌체의 오래된 골목 카페, 커피 한 잔과 빈티지 재즈',
+  'xmixW2TCay0': '유럽의 조용한 카페, 잠시 쉬어가는 빈티지 재즈',
+  'Sh0aziCM-FE': '숲이 가까운 조용한 창가, 나만의 시간을 보내는 빈티지 재즈',
+  'ro_aKNSIU58': '정원 한켠에 앉아, 느긋하게 쉬어가는 빈티지 재즈'
 };
+// 날씨 분위기별 후보. q는 채널 내 검색어
+const JAZZ = {
+  sunny: { msg: '맑은 날엔 낙엽 밟으며 듣기 좋은 재즈', q: '가을', v: ['kY3omHEHGCk', 'mzj-BS_IRDM', 'paaXvjTD2gg', '9wicCc5rAQI', 'vVN_Syplds4', '0kDeyEj7-wM', 'rRpQ2DlC3R4', 'lAjUgy12WIs'] },
+  cloudy: { msg: '흐린 날엔 커피 한 잔과 잔잔한 재즈', q: '커피', v: ['ayOebQNDtTQ', 'NPzhNs-eqOo', 'Moz9MApiMvc', '0t-hXg_nD-Q', 'SM_ELKVMA44', 'slrmlfHKeGg', 'mVsP7xI3ylc'] },
+  fog: { msg: '안개 낀 날엔 고요한 재즈', q: '안개', v: ['GwM8P6JrXog', 'e-IbGNGaPso', '7_3VD1WfSy0', 'nvpIAYZZrAk', 'mVsP7xI3ylc', 'NPzhNs-eqOo'] },
+  rain: { msg: '비 오는 날엔 카페에서 듣는 재즈', q: '비', v: ['i0uGm-TKdkc', 'gYjEsuOyYGk', 'DoXK6jO94zw', 'wkez7heh9O4', 'SM_ELKVMA44', '0t-hXg_nD-Q', 'ayOebQNDtTQ'] },
+  snow: { msg: '눈 오는 날엔 포근한 재즈', q: '크리스마스', v: ['2VtkeHYQNOk', 'IjflmgsPlp8', 'cT_y2xek7JU', 'xmixW2TCay0', 'i0uGm-TKdkc', 'hAgsh6ruDjc'] },
+  cold: { msg: '추운 날엔 따뜻한 크리스마스 재즈', q: '크리스마스', v: ['2VtkeHYQNOk', 'IjflmgsPlp8', 'cT_y2xek7JU', 'xmixW2TCay0', 'ayOebQNDtTQ', 'kUb-kFsqZSE'] },
+  night: { msg: '밤엔 불 켜진 창가의 재즈', q: '저녁', v: ['kUb-kFsqZSE', 'hAgsh6ruDjc', 'dzoE35A0cHU', 'IjflmgsPlp8', '7_3VD1WfSy0', '0kDeyEj7-wM'] },
+  hot: { msg: '더운 날엔 그늘 아래 느긋한 재즈', q: '정원', v: ['Sh0aziCM-FE', 'ro_aKNSIU58', '9wicCc5rAQI', 'xmixW2TCay0', '0t-hXg_nD-Q', 'wkez7heh9O4'] }
+};
+// 같은 날·같은 분위기면 그대로, 바뀌면 최근에 본 영상은 빼고 새로 고름
+function pickJazz(key) {
+  const today = new Date().toDateString();
+  let st = {};
+  try { st = JSON.parse(localStorage.getItem('jazz')) || {}; } catch (e) {}
+  if (st.date === today && st.key === key && Array.isArray(st.ids)) return st.ids;
+  const recent = Array.isArray(st.recent) ? st.recent : [];
+  let seed = 0;
+  for (const ch of today + key) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const rand = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  const fresh = JAZZ[key].v.filter(id => !recent.includes(id));
+  for (let i = fresh.length - 1; i > 0; i--) { const k = Math.floor(rand() * (i + 1)); [fresh[i], fresh[k]] = [fresh[k], fresh[i]]; }
+  // 새 영상이 모자라면 본 지 가장 오래된 것부터 채움
+  const old = JAZZ[key].v.filter(id => recent.includes(id)).sort((x, y) => recent.indexOf(y) - recent.indexOf(x));
+  const ids = fresh.concat(old).slice(0, 3);
+  const keep = recent.filter(id => !ids.includes(id));
+  try { localStorage.setItem('jazz', JSON.stringify({ date: today, key, ids, recent: ids.concat(keep).slice(0, 12) })); } catch (e) {}
+  return ids;
+}
 function jazzHTML(c, theme) {
   let key = theme;
   if (theme === 'sunny' || theme === 'cloudy') {
     if (c.temperature_2m >= 25) key = 'hot'; else if (c.temperature_2m <= 2) key = 'cold';
   }
   const j = JAZZ[key];
-  const day = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 864e5); // 날마다 순서가 바뀜
-  const vids = j.v.length > 3 ? Array.from({ length: 3 }, (_, k) => j.v[(day + k) % j.v.length]) : j.v;
   return '<section class="card"><h2>오늘 날씨에 어울리는 재즈</h2><div class="jazz-msg">' + j.msg + '</div><div class="vids">' +
-    vids.map(v => '<a class="vid" href="https://www.youtube.com/watch?v=' + v[0] + '" target="_blank" rel="noopener"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/' + v[0] + '/mqdefault.jpg"><span>' + esc(v[1]) + '</span></a>').join('') +
+    pickJazz(key).map(id => '<a class="vid" href="https://www.youtube.com/watch?v=' + id + '" target="_blank" rel="noopener"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/' + id + '/mqdefault.jpg"><span>' + esc(VIDS[id]) + '</span></a>').join('') +
     '</div><a class="more" target="_blank" rel="noopener" href="https://www.youtube.com/@JazzRecording/search?query=' + encodeURIComponent(j.q) + '">채널에서 “' + j.q + '” 영상 더 찾아보기 →</a></section>';
 }
 
