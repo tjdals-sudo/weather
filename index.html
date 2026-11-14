@@ -546,7 +546,7 @@ const $app = document.getElementById('app');
 let chart;
 
 async function getJSON(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) }); // API가 멈추면 무한 로딩 대신 오류 문구
   if (!res.ok) throw new Error(res.status);
   return res.json();
 }
@@ -813,7 +813,8 @@ function useGPS() {
   if (!navigator.geolocation) return load(37.5665, 126.978, '서울');
   navigator.geolocation.getCurrentPosition(
     p => load(p.coords.latitude, p.coords.longitude, '현재 위치'),
-    () => load(37.5665, 126.978, '서울')
+    () => load(37.5665, 126.978, '서울'),
+    { timeout: 10000 } // 위치 권한 창을 그냥 두면 응답이 안 와서 멈춤
   );
 }
 document.getElementById('gps').addEventListener('click', useGPS);
