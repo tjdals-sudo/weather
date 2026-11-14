@@ -562,11 +562,21 @@ async function load(lat, lon, name) {
       '&past_days=1&forecast_days=7&timezone=auto');
     const a = getJSON('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lat + '&longitude=' + lon +
       '&current=pm10,pm2_5,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide&timezone=auto').catch(() => null);
-    render(await w, await a, name);
+    const wj = await w, aj = await a;
+    render(wj, aj, name);
     lastLoad = Date.now();
     try { localStorage.setItem('loc', JSON.stringify({ lat, lon, name })); } catch (e) {}
+    try { localStorage.setItem('last', JSON.stringify({ lat, lon, w: wj, a: aj })); } catch (e) {}
   } catch (e) {
-    $app.innerHTML = '<div class="status">날씨를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>';
+    // API가 안 될 때는 같은 곳의 마지막 날씨라도 보여줌
+    let last = null;
+    try { last = JSON.parse(localStorage.getItem('last')); } catch (e) {}
+    if (last && same(last, here)) {
+      render(last.w, last.a, name);
+      $app.firstChild.insertAdjacentHTML('afterbegin', '<div class="status" style="padding:0 0 12px">날씨 서버가 응답하지 않아 ' + last.w.current.time.slice(5, 16).replace('-', '/').replace('T', ' ') + ' 기준 날씨를 보여드려요.</div>');
+    } else {
+      $app.innerHTML = '<div class="status">날씨 서버가 응답하지 않아요. 잠시 후 새로고침해 주세요.</div>';
+    }
   }
 }
 
