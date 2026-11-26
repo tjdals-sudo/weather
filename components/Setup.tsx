@@ -10,11 +10,10 @@ export function ProfileFields() {
         <legend>시작 캐릭터</legend>
         <div className="picks">
           {CHARACTERS.map((c, i) => (
-            <label key={c.id} className={c.ready ? 'pick' : 'pick locked'}>
-              <input type="radio" name="character" value={c.id} disabled={!c.ready} defaultChecked={i === 0} />
-              {c.ready ? <Character stage={0} size={90} /> : <div className="soon">?</div>}
+            <label key={c.id} className="pick">
+              <input type="radio" name="character" value={c.id} defaultChecked={i === 0} />
+              <span className="baby"><Character id={c.id} stage={0} size={190} /></span>
               <b>{c.name}</b>
-              {!c.ready && <small>준비 중</small>}
             </label>
           ))}
         </div>

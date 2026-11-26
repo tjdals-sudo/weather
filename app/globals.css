@@ -48,13 +48,7 @@ legend { color: var(--dim); font-size: 14px; margin-bottom: 8px; }
 .pick input { position: absolute; opacity: 0; }
 .pick:has(input:checked) { border-color: var(--accent); }
 .pick:has(input:focus-visible) { outline: 3px solid var(--gold); }
-.pick.locked { opacity: .45; cursor: not-allowed; }
-.soon { height: 104px; display: grid; place-items: center; font: 48px var(--display); color: var(--dim); }
 
-.hud header { display: flex; justify-content: space-between; align-items: center; }
-.hud header small { display: block; color: var(--dim); font-size: 11px; letter-spacing: .2em; }
-.hud header b { font-size: 24px; }
-.hud header form { margin: 0; }
 .stage { text-align: center; margin: 8px 0 4px; }
 .stage svg { max-width: 100%; height: auto; }
 .rank { font-size: 28px; color: var(--gold); }
@@ -71,7 +65,8 @@ legend { color: var(--dim); font-size: 14px; margin-bottom: 8px; }
 .stats span { font-size: 13px; color: var(--dim); }
 
 .gallery { max-width: 900px; }
-.gallery > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 16px; align-items: end; }
+.gallery section { margin-bottom: 28px; }
+.gallery section > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 16px; align-items: end; }
 .gallery figure { text-align: center; background: var(--panel); border: 2px solid var(--line); border-radius: 6px; padding: 8px; }
 .gallery svg { max-width: 100%; height: auto; }
 .gallery figcaption { display: grid; }
@@ -80,3 +75,27 @@ legend { color: var(--dim); font-size: 14px; margin-bottom: 8px; }
 .link { display: block; text-align: center; margin-top: 18px; padding: 12px; color: var(--text); border: 2px solid var(--line); border-radius: 4px; text-decoration: none; }
 .signup { margin-top: 4dvh; }
 label small { font-size: 12px; margin-left: 8px; }
+
+.game { position: fixed; inset: 0; overflow: hidden; background: #111; touch-action: none; user-select: none; -webkit-user-select: none; }
+.game > canvas.view { display: block; width: 100%; height: 100%; }
+.game .card { position: absolute; background: rgba(8, 9, 11, .78); border: 2px solid rgba(255, 255, 255, .14); border-radius: 6px; }
+.who { top: 12px; left: 12px; padding: 8px 12px; min-width: 170px; }
+.who small { display: block; color: var(--dim); font-size: 10px; letter-spacing: .2em; }
+.who b { font-family: var(--display), system-ui, sans-serif; font-size: 20px; letter-spacing: .04em; }
+.who .lvl { display: flex; align-items: baseline; gap: 8px; font-family: var(--display), system-ui, sans-serif; }
+.who .lvl strong { color: var(--accent); font-size: 26px; font-weight: 400; }
+.who .lvl span { color: var(--dim); font: 12px system-ui, sans-serif; margin-left: auto; }
+.menu { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; }
+.menu form { margin: 0; }
+.menu button { background: rgba(8, 9, 11, .78); color: var(--text); border: 2px solid rgba(255, 255, 255, .14); }
+.mini { left: 12px; bottom: 12px; width: 132px; height: 148px; overflow: hidden; }
+.mini canvas { width: 100%; height: 100%; display: block; opacity: .9; }
+.mini i { position: absolute; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px #000; }
+.tip { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px 12px; font-size: 13px; color: var(--dim); white-space: nowrap; pointer-events: none; }
+.sheet { position: absolute; inset: 0; background: rgba(0, 0, 0, .72); display: grid; place-items: center; padding: 16px; overflow: auto; }
+.sheet > div { background: var(--bg); border: 2px solid var(--line); border-radius: 8px; padding: 16px; width: min(420px, 100%); }
+.sheet .close { width: 100%; margin-top: 14px; }
+.offscreen { position: absolute; left: -9999px; top: 0; }
+/* 새끼 단계는 그림 틀의 아래쪽 절반만 차지하므로 그 부분만 보여준다 */
+.baby { height: 104px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+@media (max-width: 600px) { .tip { left: 156px; right: 12px; transform: none; white-space: normal; font-size: 12px; } }

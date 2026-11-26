@@ -18,7 +18,7 @@ function profileInput(form: FormData, path: string) {
   const nickname = String(form.get('nickname') ?? '').trim()
   const character = String(form.get('character') ?? '')
   if (nickname.length < 1 || nickname.length > 12) fail(path, '닉네임은 1~12자입니다')
-  if (!CHARACTERS.some((c) => c.ready && c.id === character)) fail(path, '캐릭터를 골라 주세요')
+  if (!CHARACTERS.some((c) => c.id === character)) fail(path, '캐릭터를 골라 주세요')
   return { nickname, character }
 }
 
