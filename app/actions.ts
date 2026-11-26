@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { adminClient, emailOf, sessionClient } from '@/lib/supabase'
+import { adminClient, emailOf, sessionClient, setting } from '@/lib/supabase'
 import { CHARACTERS } from '@/components/Character'
 
 const ADMIN_USERNAME = 'john'
@@ -36,6 +36,10 @@ export async function signUp(form: FormData) {
   const { username, password } = credentials(form, '/signup')
   if (password !== String(form.get('confirm') ?? '')) fail('/signup', '비밀번호 확인이 일치하지 않습니다')
   const profile = profileInput(form, '/signup')
+  // shortcut: 틀린 횟수 제한이 없다. 지인끼리 쓰는 동안은 충분하고, 주소가 널리 퍼지면 횟수 제한을 붙인다
+  const invite = await setting('invite_code')
+  if (invite === null) fail('/signup', '가입 설정을 읽지 못했습니다. 관리자에게 알려 주세요')
+  if (invite && String(form.get('invite') ?? '').trim() !== invite) fail('/signup', '초대 코드가 틀렸습니다')
   const admin = adminClient()
   // 관리자 API로 만들면 확인 메일 없이 바로 가입된다. 비밀번호 해시는 Supabase가 처리한다
   const { data, error } = await admin.auth.admin.createUser({

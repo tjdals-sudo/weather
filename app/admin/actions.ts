@@ -55,3 +55,17 @@ export async function deleteUser(form: FormData) {
   if (error) back('error', `삭제 실패: ${error.message}`)
   back('done', '계정을 삭제했습니다')
 }
+
+export async function saveSetting(form: FormData) {
+  if (!(await currentAdmin())) redirect('/')
+  const key = String(form.get('key') ?? ''), value = String(form.get('value') ?? '').trim()
+  if (key !== 'invite_code' && key !== 'notice') back('error', '잘못된 요청입니다')
+  if (value.length > (key === 'notice' ? 80 : 40)) back('error', key === 'notice' ? '공지는 80자까지입니다' : '초대 코드는 40자까지입니다')
+  const admin = adminClient()
+  const { error } = await admin.from('settings').upsert({ key, value })
+  if (error) back('error', `저장 실패: ${error.message}`)
+  if (key === 'invite_code') back('done', value ? '초대 코드를 정했습니다. 이제 이 코드를 아는 사람만 가입합니다' : '초대 코드를 없앴습니다. 누구나 가입할 수 있습니다')
+  // 내용은 보내지 않고 "다시 읽어라"는 신호만 보낸다. 공개 채널이라 신호는 흉내 낼 수 있어도 공지 내용은 못 바꾼다
+  const sent = await admin.channel('songdo').httpSend('notice', {})
+  back('done', sent.success ? (value ? '공지를 띄웠습니다' : '공지를 내렸습니다') : '저장했습니다. 접속 중인 사람은 새로고침해야 보입니다')
+}

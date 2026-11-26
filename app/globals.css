@@ -128,3 +128,6 @@ button.danger { background: var(--hot); color: #fff; }
 .orphan { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .orphan.user { border-top: 2px solid var(--line); }
 .user summary span.name { display: block; }
+
+.bulletin { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding: 6px 14px; color: var(--gold); pointer-events: none; text-align: center; }
+@media (max-width: 760px) { .bulletin { top: 112px; } }

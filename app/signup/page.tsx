@@ -1,9 +1,13 @@
 import Link from 'next/link'
 import { ProfileFields } from '@/components/Setup'
+import { connection } from 'next/server'
+import { setting } from '@/lib/supabase'
 import { signUp } from '../actions'
 
 export default async function Signup({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  await connection()
   const { error } = await searchParams
+  const invite = await setting('invite_code')
   return (
     <main className="panel signup">
       <h1>가입</h1>
@@ -18,6 +22,11 @@ export default async function Signup({ searchParams }: { searchParams: Promise<{
         <label>비밀번호 확인
           <input name="confirm" type="password" autoComplete="new-password" required minLength={8} maxLength={72} />
         </label>
+        {invite && (
+          <label>초대 코드<small>관리자에게 받은 코드</small>
+            <input name="invite" autoComplete="off" required maxLength={40} />
+          </label>
+        )}
         <ProfileFields />
         <button>가입하고 시작</button>
       </form>

@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation'
 import { connection } from 'next/server'
 import Character, { CHARACTERS } from '@/components/Character'
 import { MAX_LEVEL, stageOf } from '@/lib/level'
-import { adminClient } from '@/lib/supabase'
-import { currentAdmin, deleteUser, resetPassword, updateProfile } from './actions'
+import { adminClient, setting } from '@/lib/supabase'
+import { currentAdmin, deleteUser, resetPassword, saveSetting, updateProfile } from './actions'
 
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '없음')
 
@@ -19,6 +19,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     admin.from('profiles').select('*').order('created_at'),
     admin.auth.admin.listUsers({ perPage: 200 }),
   ])
+  const [invite, notice] = await Promise.all([setting('invite_code'), setting('notice')])
   const lastSeen = new Map(auth?.users.map((u) => [u.id, u.last_sign_in_at]))
   const orphans = auth?.users.filter((u) => !profiles?.some((p) => p.id === u.id)) ?? []
 
@@ -32,6 +33,26 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       {error && <p className="error" role="alert">{error}</p>}
       <p className="sub">가입자 {profiles?.length ?? 0}명 · Supabase 무료 플랜은 일주일간 아무도 접속하지 않으면 일시 정지됩니다. 그럴 땐 Supabase 대시보드에서 다시 켜면 됩니다.</p>
 
+      <section className="user">
+        {invite === null && <p className="error" role="alert">설정 표가 없습니다. supabase/002_settings.sql을 Supabase SQL Editor에서 실행해 주세요.</p>}
+        <form action={saveSetting}>
+          <input type="hidden" name="key" value="invite_code" />
+          <label>초대 코드<small>{invite ? '지금은 이 코드를 아는 사람만 가입합니다' : '지금은 주소만 알면 누구나 가입합니다'} · 비우면 누구나 가입</small>
+            <input name="value" defaultValue={invite ?? ''} autoComplete="off" maxLength={40} />
+          </label>
+          <button className="small">초대 코드 저장</button>
+        </form>
+        <form action={saveSetting}>
+          <input type="hidden" name="key" value="notice" />
+          <label>공지<small>접속한 모두의 화면 위쪽에 뜹니다 · 비우고 저장하면 내려갑니다</small>
+            <input name="value" defaultValue={notice ?? ''} autoComplete="off" maxLength={80} />
+          </label>
+          <button className="small">공지 저장</button>
+        </form>
+        <a className="link" href="https://supabase.com/dashboard/org/_/usage" target="_blank" rel="noreferrer">실시간 사용량 보기 (Supabase, 새 창)</a>
+      </section>
+
+      <h2>가입자</h2>
       {profiles?.map((p) => (
         <details key={p.id} className="user">
           <summary>

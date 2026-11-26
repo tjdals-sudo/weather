@@ -25,5 +25,11 @@ export async function sessionClient() {
 export const adminClient = () =>
   createClient(URL, process.env.SUPABASE_SECRET_KEY!, { auth: { persistSession: false } })
 
+// 관리자가 정한 값(초대 코드, 공지). 표가 없거나 읽지 못하면 null
+export async function setting(key: 'invite_code' | 'notice') {
+  const { data, error } = await adminClient().from('settings').select('value').eq('key', key).maybeSingle()
+  return error ? null : (data?.value ?? '')
+}
+
 // Supabase 로그인은 이메일이 필요해서 아이디를 가짜 주소로 감싼다 (메일은 발송되지 않음)
 export const emailOf = (username: string) => `${username}@brainup.local`

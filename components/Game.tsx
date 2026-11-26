@@ -392,6 +392,7 @@ export default function Game({ profile }: { profile: Profile }) {
   const chatInput = useRef<HTMLInputElement>(null)
   const [online, setOnline] = useState(1)
   const [sheet, setSheet] = useState(false)
+  const [notice, setNotice] = useState('')
   const stage = stageOf(profile.level)
   const need = xpToNext(profile.level)
   const maxed = profile.level >= MAX_LEVEL
@@ -434,7 +435,11 @@ export default function Game({ profile }: { profile: Profile }) {
     const send = (event: string, payload: Record<string, unknown>) => { if (live) channel.send({ type: 'broadcast', event, payload: { id: profile.id, ...payload } }) }
     const sendPos = () => { sentAt = performance.now(); sentX = me.x; sentY = me.y; sentFace = me.face; send('pos', { x: Math.round(me.x), y: Math.round(me.y), f: me.face }) }
     const from = (payload: Record<string, unknown>) => (typeof payload.id === 'string' && payload.id !== profile.id ? others.get(payload.id) : undefined)
+    // 공지 내용은 서버만 쓸 수 있는 표에서 읽는다. 방송은 "다시 읽어라"는 신호일 뿐이다
+    const loadNotice = () => supabase.from('settings').select('value').eq('key', 'notice').maybeSingle().then(({ data }) => setNotice(text(data?.value, 80)))
+    loadNotice()
     channel
+      .on('broadcast', { event: 'notice' }, loadNotice)
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState()
         for (const id of [...others.keys()]) if (!state[id]) others.delete(id)
@@ -642,6 +647,7 @@ export default function Game({ profile }: { profile: Profile }) {
           <i style={{ width: `${maxed ? 100 : (profile.xp / need) * 100}%` }} />
         </div>
       </div>
+      {notice && <p className="card bulletin" role="status">공지 · {notice}</p>}
       <div className="menu">
         <button className="small" onClick={() => setSheet(true)}>프로필</button>
         {profile.is_admin && <a className="small" href="/admin">관리자</a>}
