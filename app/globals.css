@@ -107,3 +107,24 @@ label small { font-size: 12px; margin-left: 8px; }
 .chat { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); margin: 0; width: min(420px, calc(100% - 340px)); }
 .chat input { width: 100%; background: rgba(8, 9, 11, .78); border: 2px solid rgba(255, 255, 255, .14); padding: 10px 12px; }
 @media (max-width: 760px) { .chat { left: 156px; right: 12px; bottom: 116px; width: auto; transform: none; } }
+
+.menu a { background: rgba(8, 9, 11, .78); color: var(--gold); border: 2px solid rgba(255, 255, 255, .14); border-radius: 4px; padding: 6px 12px; font: 14px var(--display), system-ui, sans-serif; text-decoration: none; letter-spacing: .04em; display: grid; place-items: center; }
+.admin { max-width: 560px; padding-bottom: 40px; }
+.admin header { display: flex; justify-content: space-between; align-items: center; }
+.admin header .link { margin: 0; padding: 8px 14px; }
+.admin h2 { font-size: 16px; margin: 24px 0 8px; color: var(--dim); }
+.notice { background: #10301a; border-left: 4px solid var(--accent); padding: 10px 12px; margin-top: 12px; }
+.user { background: var(--panel); border: 2px solid var(--line); border-radius: 6px; margin-top: 10px; padding: 10px 12px; }
+.user summary { display: flex; gap: 12px; align-items: center; cursor: pointer; list-style: none; }
+.user summary::-webkit-details-marker { display: none; }
+.user summary span, .orphan span { display: grid; }
+.user small { color: var(--dim); font-size: 12px; margin: 0; }
+.user em { font-style: normal; font-size: 11px; color: #06120a; background: var(--gold); border-radius: 3px; padding: 1px 6px; margin-left: 6px; }
+.user form { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.user .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check { display: flex; gap: 8px; align-items: center; color: var(--text); }
+.check input { width: 18px; height: 18px; }
+button.danger { background: var(--hot); color: #fff; }
+.orphan { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.orphan.user { border-top: 2px solid var(--line); }
+.user summary span.name { display: block; }

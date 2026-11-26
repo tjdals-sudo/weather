@@ -10,7 +10,7 @@ import {
   blocked, carSize, insideCar, pushOut, ringLength, ringPos, rng, type Building, type Tree,
 } from '@/lib/world'
 
-type Profile = { id: string; nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
+type Profile = { id: string; is_admin: boolean; nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
 type G = CanvasRenderingContext2D
 
 const STATS = [['focus', '집중력'], ['memory', '기억력'], ['mood', '기분'], ['energy', '에너지']] as const
@@ -644,6 +644,7 @@ export default function Game({ profile }: { profile: Profile }) {
       </div>
       <div className="menu">
         <button className="small" onClick={() => setSheet(true)}>프로필</button>
+        {profile.is_admin && <a className="small" href="/admin">관리자</a>}
         <form action={signOut}><button className="small">로그아웃</button></form>
       </div>
       <div className="card mini" aria-hidden="true">
