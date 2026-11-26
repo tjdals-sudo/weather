@@ -125,3 +125,11 @@ export function ringPos(d: number, s: number, clockwise: boolean) {
   }
   return { x: x0 + R, y: y0, angle: flip }
 }
+
+// 차 크기와, 점이 (돌아간) 차체 안에 있는지 판정
+export const carSize = (bus: boolean) => (bus ? { len: 92, wid: 27 } : { len: 46, wid: 22 })
+export function insideCar(px: number, py: number, car: { x: number; y: number; angle: number }, bus: boolean, margin = 9) {
+  const { len, wid } = carSize(bus), dx = px - car.x, dy = py - car.y
+  const along = dx * Math.cos(car.angle) + dy * Math.sin(car.angle), across = -dx * Math.sin(car.angle) + dy * Math.cos(car.angle)
+  return Math.abs(along) < len / 2 + margin && Math.abs(across) < wid / 2 + margin
+}

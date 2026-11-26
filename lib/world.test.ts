@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { BRIDGES, BUILDINGS, HY, POND, ROAD, SIDE, SPAWN, TREES, VX, W, H, blocked, canalX, ringLength, ringPos } from './world.ts'
+import { BRIDGES, BUILDINGS, HY, POND, ROAD, SIDE, SPAWN, TREES, VX, W, H, blocked, canalX, insideCar, ringLength, ringPos } from './world.ts'
 
 test('시작 위치와 도로는 걸을 수 있다', () => {
   assert.equal(blocked(SPAWN.x, SPAWN.y), false)
@@ -51,4 +51,14 @@ test('우측통행: 시계 방향 차는 진행 방향의 오른쪽 차로에 �
   assert.ok(Math.abs(p.angle) < 0.001 && p.y > HY[0])
   const q = ringPos(-16, 500, false) // 반시계 방향: 왼쪽 도로에서 남쪽으로 가는 중
   assert.ok(Math.abs(Math.sin(q.angle) - 1) < 0.001 && q.x < VX[0])
+})
+
+test('차체 판정: 차가 어느 방향을 보든 차체 안쪽만 막는다', () => {
+  const east = { x: 100, y: 100, angle: 0 }, south = { x: 100, y: 100, angle: Math.PI / 2 }
+  assert.equal(insideCar(125, 100, east, false), true) // 길이 방향 끝
+  assert.equal(insideCar(100, 125, east, false), false) // 옆으로는 폭이 좁다
+  assert.equal(insideCar(100, 125, south, false), true) // 90도 돌면 반대
+  assert.equal(insideCar(125, 100, south, false), false)
+  assert.equal(insideCar(150, 100, east, true), true) // 버스는 더 길다
+  assert.equal(insideCar(150, 100, east, false), false)
 })

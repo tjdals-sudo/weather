@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 import Game from '@/components/Game'
 import Setup from '@/components/Setup'
 import { sessionClient } from '@/lib/supabase'
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  await connection() // 요청 시점에 그리는 화면임을 먼저 알린다 (Supabase가 내부에서 현재 시각을 읽는다)
   const supabase = await sessionClient()
   const { data } = await supabase.auth.getUser()
   if (!data.user) redirect('/login')

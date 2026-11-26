@@ -6,7 +6,7 @@ import Character, { spriteUrl } from '@/components/Character'
 import { MAX_LEVEL, STAGE_NAMES, STAGE_START, stageOf, xpToNext } from '@/lib/level'
 import {
   BRIDGES, BUILDINGS, CANAL, CANAL_HALF, H, HY, PARK, PATH_X, PATH_Y, POND, ROAD, SIDE, SPAWN, TREES, VX, W,
-  blocked, ringLength, ringPos, rng, type Building, type Tree,
+  blocked, carSize, insideCar, ringLength, ringPos, rng, type Building, type Tree,
 } from '@/lib/world'
 
 type Profile = { nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
@@ -274,7 +274,7 @@ function makeCars() {
   return cars
 }
 function drawCar(g: G, car: Car, p: { x: number; y: number; angle: number }) {
-  const L = car.bus ? 92 : 46, Wd = car.bus ? 27 : 22
+  const { len: L, wid: Wd } = carSize(car.bus)
   g.save()
   g.translate(p.x, p.y)
   g.fillStyle = 'rgba(0,0,0,.3)'
@@ -355,6 +355,19 @@ export default function Game({ profile }: { profile: Profile }) {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
 
+      // 차: 바로 앞에 플레이어가 있으면 선다
+      const carPos = cars.map((car) => {
+        // 차 중심부터 앞쪽으로, 자기 차로 폭만큼의 구역에 플레이어가 있거나 앞차가 가까우면 선다 (옆 차로는 상관없다)
+        const { len: cl, wid: cwid } = carSize(car.bus), len = ringLength(car.d), at = ringPos(car.d, car.s, car.cw)
+        const dx = me.x - at.x, dy = me.y - at.y
+        const along = dx * Math.cos(at.angle) + dy * Math.sin(at.angle), across = Math.abs(-dx * Math.sin(at.angle) + dy * Math.cos(at.angle))
+        const jam = cars.some((o) => o !== car && o.d === car.d && (((o.s - car.s) % len) + len) % len < carSize(o.bus).len / 2 + cl / 2 + 18 + car.v * 0.3)
+        const stop = jam || (along > 0 && along < cl / 2 + 44 + car.v * 0.3 && across < cwid / 2 + 14)
+        car.v += ((stop ? 0 : car.max) - car.v) * Math.min(1, dt * 6)
+        car.s += car.v * dt
+        return ringPos(car.d, car.s, car.cw)
+      })
+
       // 이동: 키보드와 화면 드래그(가상 조이스틱)
       let ix = (keys.has('ArrowRight') || keys.has('d') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('a') ? 1 : 0)
       let iy = (keys.has('ArrowDown') || keys.has('s') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('w') ? 1 : 0)
@@ -363,20 +376,14 @@ export default function Game({ profile }: { profile: Profile }) {
       if (mag > 1) { ix /= mag; iy /= mag }
       if (mag > 0.05) {
         const nx = me.x + ix * SPEED * dt, ny = me.y + iy * SPEED * dt
-        if (!blocked(nx, me.y)) me.x = nx
-        if (!blocked(me.x, ny)) me.y = ny
+        // 차는 통과할 수 없다. 이미 차체와 겹쳐 있으면(차가 밀고 들어온 경우) 빠져나올 수 있게 풀어 준다
+        const hit = (x: number, y: number) => cars.some((car, i) => insideCar(x, y, carPos[i], car.bus))
+        const free = hit(me.x, me.y)
+        if (!blocked(nx, me.y) && (free || !hit(nx, me.y))) me.x = nx
+        if (!blocked(me.x, ny) && (free || !hit(me.x, ny))) me.y = ny
         if (Math.abs(ix) > 0.1) me.face = ix > 0 ? 1 : -1
         me.walk += dt * 11
       } else me.walk = 0
-
-      // 차: 바로 앞에 플레이어가 있으면 선다
-      const carPos = cars.map((car) => {
-        const ahead = ringPos(car.d, car.s + (car.bus ? 80 : 56), car.cw)
-        const stop = Math.hypot(ahead.x - me.x, ahead.y - me.y) < 44
-        car.v += ((stop ? 0 : car.max) - car.v) * Math.min(1, dt * 6)
-        car.s += car.v * dt
-        return ringPos(car.d, car.s, car.cw)
-      })
 
       // 카메라
       const sw = vw / zoom, sh = vh / zoom
