@@ -3,7 +3,7 @@
 import { createBrowserClient } from '@supabase/ssr'
 import { useEffect, useRef, useState } from 'react'
 import { addLog, changeCharacter, removeLog, signOut } from '@/app/actions'
-import { FOODS, GAME_TYPES, KIND_NAMES, type Kind } from '@/lib/xp'
+import { FOODS, GAME_TYPES, KIND_NAMES, SCREEN_RATE, type Kind } from '@/lib/xp'
 import Character, { spriteUrl } from '@/components/Character'
 import { CharacterPicks } from '@/components/Setup'
 import { MAX_LEVEL, STAGE_NAMES, STAGE_START, stageOf, xpToNext } from '@/lib/level'
@@ -780,6 +780,21 @@ export default function Game({ profile, logs, error, done }: { profile: Profile;
                 <button className="small">기록하기</button>
               </form>
             </details>
+            {(['sns', 'youtube'] as const).map((kind) => (
+              <details key={kind} className="swap" name="log">
+                <summary>{KIND_NAMES[kind]} <small>1분당 -{SCREEN_RATE}</small></summary>
+                <form action={addLog}>
+                  <input type="hidden" name="kind" value={kind} />
+                  <p>양심껏, 휴대폰 스크린타임에 나온 시간을 그대로 적어 주세요.</p>
+                  {kind === 'sns' && <label>어떤 SNS<input name="name" maxLength={60} placeholder="인스타그램, 틱톡 등 (안 적어도 됨)" autoComplete="off" /></label>}
+                  <div className="row">
+                    <label>시간<input name="hours" type="number" min={0} defaultValue={0} /></label>
+                    <label>분<input name="minutes" type="number" min={0} defaultValue={0} /></label>
+                  </div>
+                  <button className="small">기록하기</button>
+                </form>
+              </details>
+            ))}
             <details className="swap" name="log">
               <summary>운동 <small>1분당 +1</small></summary>
               <form action={addLog}>

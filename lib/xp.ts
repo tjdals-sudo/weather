@@ -1,8 +1,11 @@
 // 기록 한 번이 경험치와 능력치를 얼마나 바꾸는지. 수치는 전부 이 파일에서 고친다
-export type Kind = 'book' | 'game' | 'exercise' | 'sleep' | 'food'
+export type Kind = 'book' | 'game' | 'exercise' | 'sleep' | 'food' | 'sns' | 'youtube'
 type Stat = 'focus' | 'memory' | 'mood' | 'energy'
 
-export const KIND_NAMES: Record<Kind, string> = { book: '독서', game: '게임', exercise: '운동', sleep: '수면', food: '음식' }
+export const KIND_NAMES: Record<Kind, string> = { book: '독서', game: '게임', exercise: '운동', sleep: '수면', food: '음식', sns: 'SNS', youtube: '유튜브' }
+
+// SNS·유튜브 1분당 깎이는 경험치
+export const SCREEN_RATE = 0.5
 
 // 게임 1분당 깎이는 경험치
 export const GAME_TYPES = [
@@ -17,7 +20,7 @@ export const FOODS = [
   ['탄산·가당 음료', -10], ['튀김', -10], ['패스트푸드', -10], ['과자·사탕', -10], ['라면·가공육', -10], ['술', -10],
 ] as const
 
-const STATS: Record<Kind, Stat[]> = { book: ['focus', 'memory'], game: ['focus'], exercise: ['energy', 'mood'], sleep: ['energy', 'mood'], food: ['energy'] }
+const STATS: Record<Kind, Stat[]> = { book: ['focus', 'memory'], game: ['focus'], exercise: ['energy', 'mood'], sleep: ['energy', 'mood'], food: ['energy'], sns: ['focus', 'mood'], youtube: ['focus'] }
 
 // 능력치는 경험치 20마다 1씩, 한 번에 최대 5까지 같은 방향으로 움직인다
 export const statChange = (kind: Kind, xp: number): Partial<Record<Stat, number>> =>
@@ -44,6 +47,11 @@ export function score(kind: string, get: (name: string) => string): { xp: number
     if (!type) return '게임 종류를 골라 주세요'
     if (h === null || m === null || h * 60 + m === 0) return '게임한 시간을 적어 주세요'
     return { xp: -Math.round((h * 60 + m) * type[2]), detail: `${name} ${h * 60 + m}분` }
+  }
+  if (kind === 'sns' || kind === 'youtube') {
+    const h = amount('hours', 1000), m = amount('minutes', 100000)
+    if (h === null || m === null || h * 60 + m === 0) return '스크린타임에 나온 시간을 적어 주세요'
+    return { xp: -Math.round((h * 60 + m) * SCREEN_RATE), detail: `${name ? `${name} ` : ''}${h * 60 + m}분` }
   }
   if (kind === 'exercise') {
     const m = amount('minutes', 100000)

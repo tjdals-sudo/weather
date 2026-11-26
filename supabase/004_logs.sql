@@ -2,7 +2,7 @@
 create table public.logs (
   id bigint generated always as identity primary key,
   user_id uuid not null references public.profiles on delete cascade,
-  kind text not null check (kind in ('book', 'game', 'exercise', 'sleep', 'food')),
+  kind text not null check (kind in ('book', 'game', 'exercise', 'sleep', 'food', 'sns', 'youtube')),
   detail text not null,
   xp int not null,
   created_at timestamptz not null default now()

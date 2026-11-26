@@ -14,6 +14,9 @@ test('기록별 경험치', () => {
   assert.equal((score('sleep', form({ hours: '5' })) as { xp: number }).xp, -30)
   assert.equal((score('sleep', form({ hours: '6.5' })) as { xp: number }).xp, 0)
   assert.equal((score('food', form({ food: '술' })) as { xp: number }).xp, -10)
+  assert.deepEqual(score('sns', form({ name: '인스타', hours: '1', minutes: '20' })), { xp: -40, detail: '인스타 80분' })
+  assert.deepEqual(score('youtube', form({ minutes: '30' })), { xp: -15, detail: '30분' })
+  assert.equal(typeof score('sns', form({})), 'string')
 })
 
 test('잘못된 입력은 사유를 돌려준다', () => {
