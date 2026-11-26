@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { adminClient, emailOf, sessionClient } from '@/lib/supabase'
 import { CHARACTERS } from '@/components/Character'
 
+const ADMIN_USERNAME = 'jonh'
+
 const fail = (path: string, msg: string): never => redirect(`${path}?error=${encodeURIComponent(msg)}`)
 
 function credentials(form: FormData, path: string) {
@@ -44,9 +46,8 @@ export async function signUp(form: FormData) {
   if (error || !data.user)
     return fail('/signup', error?.code === 'email_exists' ? '이미 있는 아이디입니다' : `가입 실패: ${error?.message}`)
   // 프로필 저장이 실패해도 계정은 남는다. 그 경우 로그인하면 캐릭터 생성 화면이 뜬다
-  // 맨 처음 가입한 사람이 관리자가 된다. 그 뒤로는 관리자 화면에서 권한을 준다
-  const { count } = await admin.from('profiles').select('id', { count: 'exact', head: true })
-  await admin.from('profiles').insert({ id: data.user.id, username, ...profile, is_admin: count === 0 })
+  // 정해 둔 아이디로 가입하면 관리자가 된다. 그 밖의 사람은 관리자 화면에서 권한을 받는다
+  await admin.from('profiles').insert({ id: data.user.id, username, ...profile, is_admin: username === ADMIN_USERNAME })
   const supabase = await sessionClient()
   const { error: loginError } = await supabase.auth.signInWithPassword({ email: emailOf(username), password })
   if (loginError) fail('/login', '가입은 됐습니다. 로그인해 주세요')
