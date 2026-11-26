@@ -2,21 +2,27 @@ import Character, { CHARACTERS } from '@/components/Character'
 import { createProfile } from '@/app/actions'
 
 // 가입 화면과 캐릭터 생성 화면이 같이 쓰는 입력칸
+export function CharacterPicks({ current = CHARACTERS[0].id }: { current?: string }) {
+  return (
+    <div className="picks">
+      {CHARACTERS.map((c) => (
+        <label key={c.id} className="pick">
+          <input type="radio" name="character" value={c.id} defaultChecked={c.id === current} />
+          <span className="baby"><Character id={c.id} stage={0} size={150} /></span>
+          <b>{c.name}</b>
+        </label>
+      ))}
+    </div>
+  )
+}
+
 export function ProfileFields() {
   return (
     <>
       <label>닉네임<input name="nickname" required maxLength={12} /></label>
       <fieldset>
         <legend>시작 캐릭터</legend>
-        <div className="picks">
-          {CHARACTERS.map((c, i) => (
-            <label key={c.id} className="pick">
-              <input type="radio" name="character" value={c.id} defaultChecked={i === 0} />
-              <span className="baby"><Character id={c.id} stage={0} size={150} /></span>
-              <b>{c.name}</b>
-            </label>
-          ))}
-        </div>
+        <CharacterPicks />
       </fieldset>
     </>
   )

@@ -2,8 +2,9 @@
 
 import { createBrowserClient } from '@supabase/ssr'
 import { useEffect, useRef, useState } from 'react'
-import { signOut } from '@/app/actions'
+import { changeCharacter, signOut } from '@/app/actions'
 import Character, { spriteUrl } from '@/components/Character'
+import { CharacterPicks } from '@/components/Setup'
 import { MAX_LEVEL, STAGE_NAMES, STAGE_START, stageOf, xpToNext } from '@/lib/level'
 import {
   BRIDGES, BUILDINGS, CANAL, CANAL_HALF, H, HY, PARK, PATH_X, PATH_Y, POND, ROAD, SIDE, SPAWN, TREES, VX, W,
@@ -383,7 +384,7 @@ function drawTag(g: G, b: Body, stage: number, name: string, now: number, mine: 
 const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null)
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
-export default function Game({ profile }: { profile: Profile }) {
+export default function Game({ profile, error }: { profile: Profile; error?: string }) {
   const view = useRef<HTMLCanvasElement>(null)
   const mini = useRef<HTMLCanvasElement>(null)
   const dot = useRef<HTMLElement>(null)
@@ -648,6 +649,7 @@ export default function Game({ profile }: { profile: Profile }) {
         </div>
       </div>
       {notice && <p className="card bulletin" role="status">공지 · {notice}</p>}
+      {error && <p className="card bulletin fault" role="alert">{error}</p>}
       <div className="menu">
         <button className="small" onClick={() => setSheet(true)}>프로필</button>
         {profile.is_admin && <a className="small" href="/admin">관리자</a>}
@@ -694,6 +696,14 @@ export default function Game({ profile }: { profile: Profile }) {
                 </div>
               ))}
             </section>
+            <details className="swap">
+              <summary>캐릭터 바꾸기</summary>
+              <form action={changeCharacter}>
+                <p>3일에 한 번 바꿀 수 있습니다. 레벨·경험치·능력치는 그대로입니다.</p>
+                <CharacterPicks current={profile.character} />
+                <button className="small">이 캐릭터로 바꾸기</button>
+              </form>
+            </details>
             <button className="close ghost" onClick={() => setSheet(false)} autoFocus>닫기</button>
           </div>
         </div>

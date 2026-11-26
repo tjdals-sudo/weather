@@ -131,3 +131,9 @@ button.danger { background: var(--hot); color: #fff; }
 
 .bulletin { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding: 6px 14px; color: var(--gold); pointer-events: none; text-align: center; }
 @media (max-width: 760px) { .bulletin { top: 112px; } }
+.bulletin.fault { top: 104px; color: #ff8a8a; pointer-events: auto; }
+.swap { margin-top: 14px; }
+.swap summary { cursor: pointer; color: var(--dim); }
+.swap p { color: var(--dim); font-size: 13px; margin: 8px 0; }
+.swap .picks { max-height: 260px; }
+.swap button { width: 100%; margin-top: 10px; }

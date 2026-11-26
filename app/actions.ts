@@ -76,3 +76,32 @@ export async function createProfile(form: FormData) {
   if (error && error.code !== '23505') fail('/', `저장 실패: ${error.message}`)
   redirect('/')
 }
+
+const CHANGE_EVERY = 3 * 24 * 60 * 60 * 1000
+
+// 캐릭터 그림만 바꾼다. 레벨·경험치·능력치는 같은 프로필에 있으므로 그대로 남는다
+export async function changeCharacter(form: FormData) {
+  const supabase = await sessionClient()
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) redirect('/login')
+  const character = String(form.get('character') ?? '')
+  if (!CHARACTERS.some((c) => c.id === character)) fail('/', '캐릭터를 골라 주세요')
+  const admin = adminClient()
+  const { data: now, error } = await admin.from('profiles').select('character, character_changed_at').eq('id', data.user.id).single()
+  if (error) fail('/', `캐릭터를 바꾸지 못했습니다: ${error.message}`)
+  if (now!.character === character) fail('/', '지금 쓰고 있는 캐릭터입니다')
+  const cutoff = new Date(Date.now() - CHANGE_EVERY).toISOString()
+  // 조건을 수정문에 넣어 한 번에 처리한다: 두 번 연달아 눌러도 한 번만 바뀐다
+  const { data: changed, error: saveError } = await admin
+    .from('profiles')
+    .update({ character, character_changed_at: new Date().toISOString() })
+    .eq('id', data.user.id)
+    .or(`character_changed_at.is.null,character_changed_at.lt.${cutoff}`)
+    .select('id')
+  if (saveError) fail('/', `캐릭터를 바꾸지 못했습니다: ${saveError.message}`)
+  if (!changed?.length) {
+    const next = new Date(new Date(now!.character_changed_at).getTime() + CHANGE_EVERY)
+    fail('/', `캐릭터는 3일에 한 번 바꿀 수 있습니다. ${next.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })} 이후에 다시 해 주세요`)
+  }
+  redirect('/')
+}
