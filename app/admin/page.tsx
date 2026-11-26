@@ -4,6 +4,8 @@ import { connection } from 'next/server'
 import Character, { CHARACTERS } from '@/components/Character'
 import { MAX_LEVEL, stageOf } from '@/lib/level'
 import { adminClient, setting } from '@/lib/supabase'
+import { removeLog } from '@/app/actions'
+import { KIND_NAMES, type Kind } from '@/lib/xp'
 import { currentAdmin, deleteUser, resetPassword, saveSetting, updateProfile } from './actions'
 
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '없음')
@@ -15,8 +17,9 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
 
   const { done, error } = await searchParams
   const admin = adminClient()
-  const [{ data: profiles }, { data: auth }] = await Promise.all([
+  const [{ data: profiles }, { data: logs }, { data: auth }] = await Promise.all([
     admin.from('profiles').select('*').order('created_at'),
+    admin.from('logs').select('id, user_id, kind, detail, xp, created_at').order('created_at', { ascending: false }).limit(50),
     admin.auth.admin.listUsers({ perPage: 200 }),
   ])
   const [invite, notice] = await Promise.all([setting('invite_code'), setting('notice')])
@@ -91,6 +94,17 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
             </form>
           )}
         </details>
+      ))}
+
+      <h2>최근 기록 (50건까지)</h2>
+      {!logs?.length && <p className="sub">아직 기록이 없습니다.</p>}
+      {logs?.map((l) => (
+        <form key={l.id} action={removeLog} className="user orphan">
+          <input type="hidden" name="id" value={l.id} />
+          <input type="hidden" name="back" value="admin" />
+          <span><b>{profiles?.find((p) => p.id === l.user_id)?.nickname} · {KIND_NAMES[l.kind as Kind]} {l.xp > 0 ? '+' : ''}{l.xp}</b><small>{l.detail} · {when(l.created_at)}</small></span>
+          <button className="small danger">취소</button>
+        </form>
       ))}
 
       {orphans.length > 0 && (

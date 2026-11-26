@@ -26,7 +26,7 @@ h1 { font-size: 34px; line-height: 1.1; }
 .panel { margin-top: 12dvh; }
 form { display: grid; gap: 14px; margin-top: 20px; }
 label { display: grid; gap: 6px; color: var(--dim); font-size: 14px; }
-input:not([type='radio']) {
+input:not([type='radio']), select {
   background: var(--panel); border: 2px solid var(--line); color: var(--text);
   padding: 12px; font-size: 16px; border-radius: 4px;
 }
@@ -137,3 +137,17 @@ button.danger { background: var(--hot); color: #fff; }
 .swap p { color: var(--dim); font-size: 13px; margin: 8px 0; }
 .swap .picks { max-height: 260px; }
 .swap button { width: 100%; margin-top: 10px; }
+
+.bulletin.done { top: 104px; color: var(--accent); }
+.logs h2 { font-size: 20px; }
+.logs h3 { font-size: 14px; color: var(--dim); margin: 18px 0 0; }
+.logs .hint { color: var(--dim); font-size: 13px; margin: 6px 0; }
+.logs .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.logs summary small { color: var(--dim); margin-left: 6px; }
+.logs ul { list-style: none; padding: 0; margin: 6px 0 0; max-height: 220px; overflow: auto; }
+.logs li { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding: 6px 0; font-size: 13px; }
+.logs li span { flex: 1; overflow-wrap: anywhere; }
+.logs li em { font-style: normal; color: var(--accent); }
+.logs li em.minus { color: #ff8a8a; }
+.logs li form { margin: 0; }
+.logs li button { width: auto; margin: 0; }

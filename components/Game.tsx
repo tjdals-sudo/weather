@@ -2,7 +2,8 @@
 
 import { createBrowserClient } from '@supabase/ssr'
 import { useEffect, useRef, useState } from 'react'
-import { changeCharacter, signOut } from '@/app/actions'
+import { addLog, changeCharacter, removeLog, signOut } from '@/app/actions'
+import { FOODS, GAME_TYPES, KIND_NAMES, type Kind } from '@/lib/xp'
 import Character, { spriteUrl } from '@/components/Character'
 import { CharacterPicks } from '@/components/Setup'
 import { MAX_LEVEL, STAGE_NAMES, STAGE_START, stageOf, xpToNext } from '@/lib/level'
@@ -13,6 +14,7 @@ import {
 } from '@/lib/world'
 
 type Profile = { id: string; is_admin: boolean; nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
+type Log = { id: number; kind: Kind; detail: string; xp: number }
 type G = CanvasRenderingContext2D
 
 const STATS = [['focus', '집중력'], ['memory', '기억력'], ['mood', '기분'], ['energy', '에너지']] as const
@@ -385,7 +387,7 @@ function drawTag(g: G, b: Body, stage: number, name: string, now: number, mine: 
 const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null)
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
-export default function Game({ profile, error }: { profile: Profile; error?: string }) {
+export default function Game({ profile, logs, error, done }: { profile: Profile; logs: Log[]; error?: string; done?: string }) {
   const view = useRef<HTMLCanvasElement>(null)
   const mini = useRef<HTMLCanvasElement>(null)
   const dot = useRef<HTMLElement>(null)
@@ -393,7 +395,7 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
   const chatRef = useRef<(said: string) => void>(() => {})
   const chatInput = useRef<HTMLInputElement>(null)
   const [online, setOnline] = useState(1)
-  const [sheet, setSheet] = useState(false)
+  const [sheet, setSheet] = useState<'profile' | 'log' | null>(null)
   const [notice, setNotice] = useState('')
   const stage = stageOf(profile.level)
   const need = xpToNext(profile.level)
@@ -515,7 +517,7 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
       canvas.width = vw * dpr; canvas.height = vh * dpr
       zoom = Math.max(0.85, Math.min(1.15, Math.min(vw, vh * 1.3) / 820)) // 폰에서도 캐릭터가 너무 작아지지 않게
     }
-    const typing = (e: KeyboardEvent) => e.target instanceof HTMLInputElement
+    const typing = (e: KeyboardEvent) => e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement
     const down = (e: KeyboardEvent) => {
       if (typing(e)) return
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
@@ -682,8 +684,10 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
       </div>
       {notice && <p className="card bulletin" role="status">공지 · {notice}</p>}
       {error && <p className="card bulletin fault" role="alert">{error}</p>}
+      {done && !error && <p className="card bulletin done" role="status">{done}</p>}
       <div className="menu">
-        <button className="small" onClick={() => setSheet(true)}>프로필</button>
+        <button className="small" onClick={() => setSheet('log')}>기록</button>
+        <button className="small" onClick={() => setSheet('profile')}>프로필</button>
         {profile.is_admin && <a className="small" href="/admin">관리자</a>}
         <form action={signOut}><button className="small">로그아웃</button></form>
       </div>
@@ -710,7 +714,7 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
         ))}
       </div>
 
-      {sheet && (
+      {sheet === 'profile' && (
         <div className="sheet" role="dialog" aria-modal="true" aria-label="프로필">
           <div>
             <section className="stage">
@@ -736,7 +740,91 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
                 <button className="small">이 캐릭터로 바꾸기</button>
               </form>
             </details>
-            <button className="close ghost" onClick={() => setSheet(false)} autoFocus>닫기</button>
+            <button className="close ghost" onClick={() => setSheet(null)} autoFocus>닫기</button>
+          </div>
+        </div>
+      )}
+
+      {sheet === 'log' && (
+        <div className="sheet" role="dialog" aria-modal="true" aria-label="기록">
+          <div className="logs">
+            <h2>기록</h2>
+            <p className="hint">입력하면 바로 경험치에 반영됩니다. 재미와 습관을 위한 게임이며 의학적 조언이 아닙니다.</p>
+            <details className="swap" name="log">
+              <summary>독서 <small>1쪽당 +2</small></summary>
+              <form action={addLog}>
+                <input type="hidden" name="kind" value="book" />
+                <label>책 제목<input name="name" required maxLength={60} autoComplete="off" /></label>
+                <div className="row">
+                  <label>글쓴이<input name="author" maxLength={40} autoComplete="off" /></label>
+                  <label>출판사<input name="publisher" maxLength={40} autoComplete="off" /></label>
+                </div>
+                <label>읽은 쪽수<input name="pages" type="number" min={1} required /></label>
+                <button className="small">기록하기</button>
+              </form>
+            </details>
+            <details className="swap" name="log">
+              <summary>게임 <small>1분당 -0.2 ~ -1</small></summary>
+              <form action={addLog}>
+                <input type="hidden" name="kind" value="game" />
+                <label>게임 이름<input name="name" required maxLength={60} autoComplete="off" /></label>
+                <label>종류
+                  <select name="type" defaultValue="mid">
+                    {GAME_TYPES.map(([id, label, rate]) => <option key={id} value={id}>{label} · 1분당 -{rate}</option>)}
+                  </select>
+                </label>
+                <div className="row">
+                  <label>시간<input name="hours" type="number" min={0} defaultValue={0} /></label>
+                  <label>분<input name="minutes" type="number" min={0} defaultValue={0} /></label>
+                </div>
+                <button className="small">기록하기</button>
+              </form>
+            </details>
+            <details className="swap" name="log">
+              <summary>운동 <small>1분당 +1</small></summary>
+              <form action={addLog}>
+                <input type="hidden" name="kind" value="exercise" />
+                <label>무슨 운동<input name="name" maxLength={60} placeholder="달리기, 헬스 등 (안 적어도 됨)" autoComplete="off" /></label>
+                <label>운동한 시간(분)<input name="minutes" type="number" min={1} required /></label>
+                <button className="small">기록하기</button>
+              </form>
+            </details>
+            <details className="swap" name="log">
+              <summary>수면 <small>7~9시간 +30 · 6시간 미만 -30</small></summary>
+              <form action={addLog}>
+                <input type="hidden" name="kind" value="sleep" />
+                <label>잔 시간<input name="hours" type="number" min={0.5} max={24} step={0.5} required /></label>
+                <button className="small">기록하기</button>
+              </form>
+            </details>
+            <details className="swap" name="log">
+              <summary>음식 <small>좋음 +10 · 나쁨 -10</small></summary>
+              <form action={addLog}>
+                <input type="hidden" name="kind" value="food" />
+                <label>분류
+                  <select name="food" defaultValue={FOODS[0][0]}>
+                    {FOODS.map(([food, xp]) => <option key={food} value={food}>{food} · {xp > 0 ? '+' : ''}{xp}</option>)}
+                  </select>
+                </label>
+                <label>먹은 것<input name="name" maxLength={60} placeholder="고등어구이 등 (안 적어도 됨)" autoComplete="off" /></label>
+                <button className="small">기록하기</button>
+              </form>
+            </details>
+            <h3>최근 기록</h3>
+            {logs.length === 0 && <p className="hint">아직 기록이 없습니다.</p>}
+            <ul>
+              {logs.map((l) => (
+                <li key={l.id}>
+                  <span><b>{KIND_NAMES[l.kind]}</b> {l.detail}</span>
+                  <em className={l.xp < 0 ? 'minus' : ''}>{l.xp > 0 ? '+' : ''}{l.xp}</em>
+                  <form action={removeLog}>
+                    <input type="hidden" name="id" value={l.id} />
+                    <button className="small ghost">취소</button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+            <button className="close ghost" onClick={() => setSheet(null)}>닫기</button>
           </div>
         </div>
       )}

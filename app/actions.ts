@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 import { adminClient, emailOf, sessionClient, setting } from '@/lib/supabase'
 import { CHARACTERS } from '@/components/Character'
+import { applyXp } from '@/lib/level'
+import { KIND_NAMES, score, statChange, type Kind } from '@/lib/xp'
 
 const ADMIN_USERNAME = 'john'
 
@@ -104,4 +106,56 @@ export async function changeCharacter(form: FormData) {
     fail('/', `캐릭터는 3일에 한 번 바꿀 수 있습니다. ${next.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })} 이후에 다시 해 주세요`)
   }
   redirect('/')
+}
+
+// 경험치와 능력치를 옮긴다. 실패하면 null
+// shortcut: 읽고 나서 쓰므로 같은 사람이 동시에 두 번 기록하면 하나가 덮일 수 있다. 사용자가 늘면 DB 함수 하나로 묶는다
+async function shift(userId: string, kind: Kind, xp: number, maxDown: number) {
+  const admin = adminClient()
+  const { data: p } = await admin.from('profiles').select('level, xp, focus, memory, mood, energy').eq('id', userId).single()
+  if (!p) return null
+  const next: Record<string, number> = applyXp(p.level, p.xp, xp, maxDown)
+  for (const [stat, d] of Object.entries(statChange(kind, xp))) next[stat] = Math.max(0, Math.min(100, p[stat as 'focus'] + d))
+  const { error } = await admin.from('profiles').update(next).eq('id', userId)
+  return error ? null : { from: p.level, to: next.level }
+}
+
+export async function addLog(form: FormData) {
+  const supabase = await sessionClient()
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) redirect('/login')
+  const kind = String(form.get('kind') ?? '')
+  const result = score(kind, (name) => String(form.get(name) ?? ''))
+  if (typeof result === 'string') return fail('/', result)
+  const admin = adminClient()
+  const { data: log, error } = await admin.from('logs').insert({ user_id: data.user.id, kind, ...result }).select('id').single()
+  if (error) return fail('/', `기록하지 못했습니다: ${error.message}`)
+  const moved = await shift(data.user.id, kind as Kind, result.xp, 1)
+  if (!moved) {
+    // 경험치가 안 바뀌었으면 기록도 남기지 않는다
+    await admin.from('logs').delete().eq('id', log.id)
+    return fail('/', '기록하지 못했습니다. 다시 해 주세요')
+  }
+  const level = moved.to === moved.from ? '' : ` · LV ${moved.from} → ${moved.to}`
+  redirect(`/?done=${encodeURIComponent(`${KIND_NAMES[kind as Kind]} ${result.xp > 0 ? '+' : ''}${result.xp} XP${level}`)}`)
+}
+
+// 기록을 지우고 그 기록이 바꾼 경험치를 되돌린다. 본인 것만, 관리자는 누구 것이든
+export async function removeLog(form: FormData) {
+  const supabase = await sessionClient()
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) redirect('/login')
+  const path = form.get('back') === 'admin' ? '/admin' : '/'
+  const id = Number(form.get('id'))
+  if (!Number.isSafeInteger(id)) fail(path, '잘못된 요청입니다')
+  const admin = adminClient()
+  const { data: me } = await admin.from('profiles').select('is_admin').eq('id', data.user.id).maybeSingle()
+  let gone = admin.from('logs').delete().eq('id', id)
+  if (!me?.is_admin) gone = gone.eq('user_id', data.user.id)
+  // 지워진 줄을 돌려받아 처리한다: 두 번 연달아 눌러도 한 번만 되돌린다
+  const { data: rows } = await gone.select('user_id, kind, xp')
+  if (!rows?.length) return fail(path, '이미 지워졌거나 없는 기록입니다')
+  const moved = await shift(rows[0].user_id, rows[0].kind, -rows[0].xp, Infinity)
+  if (!moved) return fail(path, '기록은 지웠지만 경험치를 되돌리지 못했습니다. 관리자에게 알려 주세요')
+  redirect(`${path}?done=${encodeURIComponent('기록을 취소하고 경험치를 되돌렸습니다')}`)
 }
