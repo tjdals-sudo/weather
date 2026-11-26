@@ -12,7 +12,7 @@ export function ProfileFields() {
           {CHARACTERS.map((c, i) => (
             <label key={c.id} className="pick">
               <input type="radio" name="character" value={c.id} defaultChecked={i === 0} />
-              <span className="baby"><Character id={c.id} stage={0} size={190} /></span>
+              <span className="baby"><Character id={c.id} stage={0} size={150} /></span>
               <b>{c.name}</b>
             </label>
           ))}

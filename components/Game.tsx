@@ -1,5 +1,6 @@
 'use client'
 
+import { createBrowserClient } from '@supabase/ssr'
 import { useEffect, useRef, useState } from 'react'
 import { signOut } from '@/app/actions'
 import Character, { spriteUrl } from '@/components/Character'
@@ -9,7 +10,7 @@ import {
   blocked, carSize, insideCar, pushOut, ringLength, ringPos, rng, type Building, type Tree,
 } from '@/lib/world'
 
-type Profile = { nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
+type Profile = { id: string; nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
 type G = CanvasRenderingContext2D
 
 const STATS = [['focus', '집중력'], ['memory', '기억력'], ['mood', '기분'], ['energy', '에너지']] as const
@@ -304,11 +305,92 @@ function drawCar(g: G, car: Car, p: { x: number; y: number; angle: number }) {
   g.restore()
 }
 
+type Body = { x: number; y: number; face: number; walk: number; z: number; vz: number; act: { kind: Act; t: number } | null; say: string; sayUntil: number }
+// 다른 사람: 받은 위치(tx, ty)를 향해 부드럽게 따라간다
+type Remote = Body & { tx: number; ty: number; nickname: string; character: string; stage: number }
+
+function stepBody(b: Body, dt: number) {
+  if (b.z > 0 || b.vz > 0) {
+    b.z += b.vz * dt
+    b.vz -= 1500 * dt
+    if (b.z <= 0) { b.z = 0; b.vz = 0 }
+  }
+  if (b.act && (b.act.t += dt) > ACT_TIME) b.act = null
+}
+
+function drawAvatar(g: G, img: HTMLImageElement, b: Body, stage: number) {
+  const air = Math.min(1, b.z / 70)
+  g.fillStyle = `rgba(0,0,0,${0.32 - air * 0.14})`
+  g.beginPath(); g.ellipse(b.x, b.y, 17 - air * 5, 6.5 - air * 2, 0, 0, 7); g.fill()
+  if (!img.complete || !img.naturalWidth) return
+  const h = 104, w = (h * img.naturalWidth) / img.naturalHeight, bob = b.z ? 0 : Math.abs(Math.sin(b.walk)) * 4
+  // 그림이 한 장이라 팔다리는 못 움직인다. 몸을 내밀고 기울이고, 주먹은 따로 그려 동작을 표현한다
+  const kind = b.act?.kind, swing = b.act ? Math.sin((b.act.t / ACT_TIME) * Math.PI) : 0
+  const dir = kind === 'L' ? -1 : kind === 'R' ? 1 : b.face
+  const fy = b.y - bob - b.z, tall = tallOf(stage)
+  g.save()
+  g.translate(b.x + dir * swing * (kind === 'H' ? 16 : 7), fy + (kind === 'H' ? swing * 5 : 0))
+  if (kind === 'H') g.rotate(dir * swing * 0.5)
+  g.scale(b.face, 1)
+  g.drawImage(img, -w / 2, -h + 5, w, h)
+  g.restore()
+  if (kind === 'L' || kind === 'R') {
+    const px = b.x + dir * (tall * 0.22 + 8 + swing * 30), py = fy - tall * 0.42
+    g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 3; g.lineCap = 'round'
+    g.beginPath()
+    for (const o of [-7, 0, 7]) { g.moveTo(px - dir * 14, py + o); g.lineTo(px - dir * (20 + swing * 16), py + o) }
+    g.stroke()
+    g.fillStyle = '#fff'; g.strokeStyle = '#1c1b22'; g.lineWidth = 3
+    g.beginPath(); g.arc(px, py, 10, 0, 7); g.fill(); g.stroke()
+    g.beginPath(); g.moveTo(px + dir * 3, py - 6); g.lineTo(px + dir * 3, py + 6); g.stroke()
+    g.lineCap = 'butt'
+  }
+  if (kind && swing > 0.75) {
+    // 타격 순간의 별 모양 섬광
+    const sx = b.x + dir * (kind === 'H' ? tall * 0.45 + 22 : tall * 0.22 + 54), sy = fy - tall * (kind === 'H' ? 0.75 : 0.42)
+    g.fillStyle = '#ffe14a'; g.strokeStyle = '#1c1b22'; g.lineWidth = 2
+    g.beginPath()
+    for (let i = 0; i < 16; i++) { const r = i % 2 ? 6 : 15, t = (i / 16) * Math.PI * 2; g.lineTo(sx + Math.cos(t) * r, sy + Math.sin(t) * r) }
+    g.closePath(); g.fill(); g.stroke()
+  }
+}
+
+// 이름표와, 말하는 중이면 그 위에 말풍선
+function drawTag(g: G, b: Body, stage: number, name: string, now: number, mine: boolean) {
+  const top = b.y - b.z - 14 - tallOf(stage)
+  g.font = '700 13px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(name, b.x, top)
+  g.fillStyle = mine ? '#fff' : '#9fe8ff'; g.fillText(name, b.x, top)
+  if (!b.say || now > b.sayUntil) return
+  g.font = '600 14px system-ui, sans-serif'
+  const lines: string[] = []
+  let line = ''
+  for (const ch of b.say) {
+    if (g.measureText(line + ch).width > 190) { lines.push(line); line = '' }
+    line += ch
+  }
+  lines.push(line)
+  const bw = Math.max(...lines.map((l) => g.measureText(l).width)) + 20, bh = lines.length * 19 + 12, by = top - 16 - bh
+  g.fillStyle = '#fff'; g.strokeStyle = '#1c1b22'; g.lineWidth = 2.5
+  g.beginPath(); g.roundRect(b.x - bw / 2, by, bw, bh, 10); g.fill(); g.stroke()
+  g.beginPath(); g.moveTo(b.x - 7, by + bh - 1); g.lineTo(b.x, by + bh + 9); g.lineTo(b.x + 7, by + bh - 1); g.fill()
+  g.beginPath(); g.moveTo(b.x - 7, by + bh); g.lineTo(b.x, by + bh + 9); g.lineTo(b.x + 7, by + bh); g.stroke()
+  g.fillStyle = '#16151b'
+  lines.forEach((l, i) => g.fillText(l, b.x, by + 16 + i * 19))
+}
+
+// 남이 보낸 값은 믿지 않는다: 숫자인지 확인하고 범위 안으로 자른다
+const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null)
+const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
 export default function Game({ profile }: { profile: Profile }) {
   const view = useRef<HTMLCanvasElement>(null)
   const mini = useRef<HTMLCanvasElement>(null)
   const dot = useRef<HTMLElement>(null)
   const actRef = useRef<(kind: Act) => void>(() => {})
+  const chatRef = useRef<(said: string) => void>(() => {})
+  const chatInput = useRef<HTMLInputElement>(null)
+  const [online, setOnline] = useState(1)
   const [sheet, setSheet] = useState(false)
   const stage = stageOf(profile.level)
   const need = xpToNext(profile.level)
@@ -320,8 +402,13 @@ export default function Game({ profile }: { profile: Profile }) {
     const sprites = BUILDINGS.map((b, i) => buildingSprite(b, i + 1))
     const tribowl = tribowlSprite()
     const cars = makeCars()
-    const hero = new Image()
-    hero.src = spriteUrl(profile.character, stage)
+    const images = new Map<string, HTMLImageElement>()
+    const imageOf = (character: string, st: number) => {
+      const url = spriteUrl(character, st)
+      let img = images.get(url)
+      if (!img) { img = new Image(); img.src = url; images.set(url, img) }
+      return img
+    }
 
     const mg = mini.current!.getContext('2d')!
     mg.drawImage(ground, 0, 0, mini.current!.width, mini.current!.height)
@@ -337,10 +424,62 @@ export default function Game({ profile }: { profile: Profile }) {
       { base: POND.y + 70, x0: POND.x - 160, y0: POND.y - 150, x1: POND.x + 160, y1: POND.y + 80, draw: () => g.drawImage(tribowl, POND.x - 160, POND.y - 150) },
     ]
 
-    const me = { x: SPAWN.x, y: SPAWN.y, face: 1, walk: 0, z: 0, vz: 0, act: null as { kind: Act; t: number } | null }
+    const me: Body = { x: SPAWN.x, y: SPAWN.y, face: 1, walk: 0, z: 0, vz: 0, act: null, say: '', sayUntil: 0 }
+    const others = new Map<string, Remote>()
+
+    // shortcut: 누구나 들어올 수 있는 공개 채널이라 보낸 사람 id를 속일 수 있다. 지인끼리만 쓰는 동안은 충분하고, 공개 서비스로 가면 비공개 채널 + RLS로 올린다
+    const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    const channel = supabase.channel('songdo', { config: { broadcast: { self: false }, presence: { key: profile.id } } })
+    let live = false, sentAt = 0, sentX = me.x, sentY = me.y, sentFace = me.face, chatAt = 0
+    const send = (event: string, payload: Record<string, unknown>) => { if (live) channel.send({ type: 'broadcast', event, payload: { id: profile.id, ...payload } }) }
+    const sendPos = () => { sentAt = performance.now(); sentX = me.x; sentY = me.y; sentFace = me.face; send('pos', { x: Math.round(me.x), y: Math.round(me.y), f: me.face }) }
+    const from = (payload: Record<string, unknown>) => (typeof payload.id === 'string' && payload.id !== profile.id ? others.get(payload.id) : undefined)
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        for (const id of [...others.keys()]) if (!state[id]) others.delete(id)
+        for (const [id, metas] of Object.entries(state)) {
+          if (id === profile.id) continue
+          const m = metas[0] as Record<string, unknown>
+          const x = num(m.x, 0, W) ?? SPAWN.x, y = num(m.y, 0, H) ?? SPAWN.y
+          const who = { nickname: text(m.nickname, 12) || '???', character: text(m.character, 20), stage: num(m.stage, 0, 5) ?? 0 }
+          const old = others.get(id)
+          if (old) Object.assign(old, who)
+          else others.set(id, { x, y, tx: x, ty: y, face: 1, walk: 0, z: 0, vz: 0, act: null, say: '', sayUntil: 0, ...who })
+        }
+        setOnline(others.size + 1)
+      })
+      .on('presence', { event: 'join' }, () => sendPos()) // 새로 들어온 사람이 내 현재 위치를 알도록
+      .on('broadcast', { event: 'pos' }, ({ payload }) => {
+        const o = from(payload), x = num(payload.x, 0, W), y = num(payload.y, 0, H)
+        if (!o || x === null || y === null) return
+        o.tx = x; o.ty = y; o.face = payload.f === -1 ? -1 : 1
+      })
+      .on('broadcast', { event: 'act' }, ({ payload }) => {
+        const o = from(payload), kind = payload.k
+        if (!o) return
+        if (kind === 'J') { if (o.z === 0) o.vz = 430 }
+        else if (kind === 'L' || kind === 'R' || kind === 'H') o.act = { kind, t: 0 }
+      })
+      .on('broadcast', { event: 'chat' }, ({ payload }) => {
+        const o = from(payload), said = text(payload.t, 60)
+        if (o && said) { o.say = said; o.sayUntil = performance.now() + 6000 }
+      })
+      .subscribe(async (status) => {
+        live = status === 'SUBSCRIBED'
+        if (live) await channel.track({ nickname: profile.nickname, character: profile.character, stage, x: Math.round(me.x), y: Math.round(me.y) })
+      })
+    chatRef.current = (raw: string) => {
+      const said = text(raw, 60), now = performance.now()
+      if (!said || now - chatAt < 700) return
+      chatAt = now; me.say = said; me.sayUntil = now + 6000
+      send('chat', { t: said })
+    }
+
     const doAct = (kind: Act) => {
-      if (kind === 'J') { if (me.z === 0) me.vz = 430 }
+      if (kind === 'J') { if (me.z !== 0) return; me.vz = 430 }
       else me.act = { kind, t: 0 }
+      send('act', { k: kind })
     }
     actRef.current = doAct
     const keys = new Set<string>()
@@ -353,11 +492,14 @@ export default function Game({ profile }: { profile: Profile }) {
       canvas.width = vw * dpr; canvas.height = vh * dpr
       zoom = Math.max(0.85, Math.min(1.15, Math.min(vw, vh * 1.3) / 820)) // 폰에서도 캐릭터가 너무 작아지지 않게
     }
+    const typing = (e: KeyboardEvent) => e.target instanceof HTMLInputElement
     const down = (e: KeyboardEvent) => {
+      if (typing(e)) return
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
+      if (key === 'Enter') { e.preventDefault(); keys.clear(); chatInput.current?.focus(); return }
       if (key.startsWith('Arrow') || key === ' ') e.preventDefault()
       const kind = ({ ' ': 'J', a: 'L', s: 'H', d: 'R' } as Record<string, Act>)[key]
-      if (kind && !e.repeat && !(e.target instanceof HTMLInputElement)) doAct(kind)
+      if (kind && !e.repeat) doAct(kind)
       keys.add(key)
     }
     const up = (e: KeyboardEvent) => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key)
@@ -410,13 +552,17 @@ export default function Game({ profile }: { profile: Profile }) {
         me.walk += dt * 11
       } else me.walk = 0
 
-      // 점프와 동작
-      if (me.z > 0 || me.vz > 0) {
-        me.z += me.vz * dt
-        me.vz -= 1500 * dt
-        if (me.z <= 0) { me.z = 0; me.vz = 0 }
+      stepBody(me, dt)
+      for (const o of others.values()) {
+        const gap = Math.hypot(o.tx - o.x, o.ty - o.y)
+        if (gap > 400) { o.x = o.tx; o.y = o.ty } // 너무 멀면 순간이동
+        else { o.x += (o.tx - o.x) * Math.min(1, dt * 9); o.y += (o.ty - o.y) * Math.min(1, dt * 9) }
+        o.walk = gap > 3 ? o.walk + dt * 11 : 0
+        stepBody(o, dt)
       }
-      if (me.act && (me.act.t += dt) > ACT_TIME) me.act = null
+      // 내 위치 전송: 움직였을 때만, 사람이 많을수록 드물게 (전체가 무료 한도인 초당 100건을 넘지 않도록 약 60건에 맞춘다)
+      const people = others.size + 1, every = Math.max(200, Math.min(2000, (people * people * 1000) / 60))
+      if (people > 1 && now - sentAt > every && (Math.hypot(me.x - sentX, me.y - sentY) > 1 || me.face !== sentFace)) sendPos()
 
       // 카메라
       const sw = vw / zoom, sh = vh / zoom
@@ -431,45 +577,11 @@ export default function Game({ profile }: { profile: Profile }) {
         const p = carPos[i]
         if (p.x > cx - 100 && p.x < cx + sw + 100 && p.y > cy - 100 && p.y < cy + sh + 100) items.push({ base: p.y + 10, x0: 0, y0: 0, x1: 0, y1: 0, draw: () => drawCar(g, car, p) })
       })
-      items.push({
-        base: me.y, x0: 0, y0: 0, x1: 0, y1: 0,
-        draw: () => {
-          const air = Math.min(1, me.z / 70)
-          g.fillStyle = `rgba(0,0,0,${0.32 - air * 0.14})`
-          g.beginPath(); g.ellipse(me.x, me.y, 17 - air * 5, 6.5 - air * 2, 0, 0, 7); g.fill()
-          if (!hero.complete || !hero.naturalWidth) return
-          const h = 104, w = (h * hero.naturalWidth) / hero.naturalHeight, bob = me.z ? 0 : Math.abs(Math.sin(me.walk)) * 4
-          // 그림이 한 장이라 팔다리는 못 움직인다. 몸을 내밀고 기울이고, 주먹은 따로 그려 동작을 표현한다
-          const kind = me.act?.kind, swing = me.act ? Math.sin((me.act.t / ACT_TIME) * Math.PI) : 0
-          const dir = kind === 'L' ? -1 : kind === 'R' ? 1 : me.face
-          const fy = me.y - bob - me.z, tall = tallOf(stage)
-          g.save()
-          g.translate(me.x + dir * swing * (kind === 'H' ? 16 : 7), fy + (kind === 'H' ? swing * 5 : 0))
-          if (kind === 'H') g.rotate(dir * swing * 0.5)
-          g.scale(me.face, 1)
-          g.drawImage(hero, -w / 2, -h + 5, w, h)
-          g.restore()
-          if (kind === 'L' || kind === 'R') {
-            const px = me.x + dir * (tall * 0.22 + 8 + swing * 30), py = fy - tall * 0.42
-            g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 3; g.lineCap = 'round'
-            g.beginPath()
-            for (const o of [-7, 0, 7]) { g.moveTo(px - dir * 14, py + o); g.lineTo(px - dir * (20 + swing * 16), py + o) }
-            g.stroke()
-            g.fillStyle = '#fff'; g.strokeStyle = '#1c1b22'; g.lineWidth = 3
-            g.beginPath(); g.arc(px, py, 10, 0, 7); g.fill(); g.stroke()
-            g.beginPath(); g.moveTo(px + dir * 3, py - 6); g.lineTo(px + dir * 3, py + 6); g.stroke()
-            g.lineCap = 'butt'
-          }
-          if (kind && swing > 0.75) {
-            // 타격 순간의 별 모양 섬광
-            const sx = me.x + dir * (kind === 'H' ? tall * 0.45 + 22 : tall * 0.22 + 54), sy = fy - tall * (kind === 'H' ? 0.75 : 0.42)
-            g.fillStyle = '#ffe14a'; g.strokeStyle = '#1c1b22'; g.lineWidth = 2
-            g.beginPath()
-            for (let i = 0; i < 16; i++) { const r = i % 2 ? 6 : 15, t = (i / 16) * Math.PI * 2; g.lineTo(sx + Math.cos(t) * r, sy + Math.sin(t) * r) }
-            g.closePath(); g.fill(); g.stroke()
-          }
-        },
-      })
+      for (const o of others.values()) {
+        if (o.x < cx - 120 || o.x > cx + sw + 120 || o.y < cy - 40 || o.y > cy + sh + 160) continue
+        items.push({ base: o.y - 0.5, x0: 0, y0: 0, x1: 0, y1: 0, draw: () => drawAvatar(g, imageOf(o.character, o.stage), o, o.stage) })
+      }
+      items.push({ base: me.y, x0: 0, y0: 0, x1: 0, y1: 0, draw: () => drawAvatar(g, imageOf(profile.character, stage), me, stage) })
       items.sort((a, b) => a.base - b.base)
       for (const item of items) item.draw()
 
@@ -481,9 +593,8 @@ export default function Game({ profile }: { profile: Profile }) {
         g.fillStyle = 'rgba(8,9,11,.8)'; g.beginPath(); g.roundRect(tx - tw / 2, ty - 11, tw, 22, 4); g.fill()
         g.fillStyle = '#f5c518'; g.fillText(b.label, tx, ty + 1)
       }
-      const top = me.y - me.z - 14 - tallOf(stage)
-      g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(profile.nickname, me.x, top)
-      g.fillStyle = '#fff'; g.fillText(profile.nickname, me.x, top)
+      for (const o of others.values()) drawTag(g, o, o.stage, o.nickname, now, false)
+      drawTag(g, me, stage, profile.nickname, now, true)
 
       // 조이스틱 표시 (화면 좌표)
       if (stick) {
@@ -508,6 +619,7 @@ export default function Game({ profile }: { profile: Profile }) {
     raf = requestAnimationFrame(frame)
     return () => {
       cancelAnimationFrame(raf)
+      supabase.removeChannel(channel)
       window.removeEventListener('resize', resize)
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
@@ -517,13 +629,13 @@ export default function Game({ profile }: { profile: Profile }) {
       canvas.removeEventListener('pointerup', pup)
       canvas.removeEventListener('pointercancel', pup)
     }
-  }, [profile.character, profile.nickname, stage])
+  }, [profile.id, profile.character, profile.nickname, stage])
 
   return (
     <div className="game">
       <canvas ref={view} className="view" aria-label="송도 맵. 방향키로 이동합니다" />
       <div className="card who">
-        <small>PLAYER</small>
+        <small>PLAYER · 접속 {online}명</small>
         <b>{profile.nickname}</b>
         <div className="lvl">LV <strong>{profile.level}</strong><span>{maxed ? 'MAX' : `${profile.xp} / ${need} XP`}</span></div>
         <div className="bar xp" role="progressbar" aria-label="경험치" aria-valuemin={0} aria-valuemax={need} aria-valuenow={Math.min(profile.xp, need)}>
@@ -538,7 +650,19 @@ export default function Game({ profile }: { profile: Profile }) {
         <canvas ref={mini} width={264} height={297} />
         <i ref={dot} />
       </div>
-      <p className="card tip">방향키·드래그 이동 · 스페이스 점프 · A 왼펀치 · S 박치기 · D 오른펀치</p>
+      <p className="card tip">방향키·드래그 이동 · 스페이스 점프 · A 왼펀치 · S 박치기 · D 오른펀치 · Enter 채팅</p>
+      <form
+        className="chat"
+        onSubmit={(e) => {
+          e.preventDefault()
+          const input = chatInput.current!
+          chatRef.current(input.value)
+          input.value = ''
+          input.blur()
+        }}
+      >
+        <input ref={chatInput} maxLength={60} placeholder="채팅 (Enter)" aria-label="채팅 입력" autoComplete="off" enterKeyHint="send" />
+      </form>
       <div className="pad">
         {([['L', '왼펀치'], ['H', '박치기'], ['R', '오른펀치'], ['J', '점프']] as const).map(([kind, label]) => (
           <button key={kind} className="small" onPointerDown={() => actRef.current(kind)}>{label}</button>

@@ -40,7 +40,8 @@ button.small { padding: 6px 12px; font-size: 14px; }
 .error { background: #3a0f0a; border-left: 4px solid var(--hot); padding: 10px 12px; margin-top: 12px; }
 fieldset { border: 0; padding: 0; }
 legend { color: var(--dim); font-size: 14px; margin-bottom: 8px; }
-.picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.picks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 420px; overflow-y: auto; padding: 3px; }
+.pick b { font-size: 13px; }
 .pick {
   position: relative; background: var(--panel); border: 2px solid var(--line); border-radius: 6px;
   padding: 8px 4px; justify-items: center; text-align: center; color: var(--text); cursor: pointer;
@@ -97,8 +98,12 @@ label small { font-size: 12px; margin-left: 8px; }
 .sheet .close { width: 100%; margin-top: 14px; }
 .offscreen { position: absolute; left: -9999px; top: 0; }
 /* 새끼 단계는 그림 틀의 아래쪽 절반만 차지하므로 그 부분만 보여준다 */
-.baby { height: 104px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+.baby { height: 84px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
 @media (max-width: 600px) { .tip { left: 156px; right: 12px; transform: none; white-space: normal; font-size: 12px; } }
 .pad { position: absolute; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
 .pad button { background: rgba(8, 9, 11, .78); color: var(--text); border: 2px solid rgba(255, 255, 255, .14); min-width: 76px; min-height: 44px; }
 @media (max-width: 600px) { .tip { display: none; } }
+.tip { bottom: 64px; }
+.chat { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); margin: 0; width: min(420px, calc(100% - 340px)); }
+.chat input { width: 100%; background: rgba(8, 9, 11, .78); border: 2px solid rgba(255, 255, 255, .14); padding: 10px 12px; }
+@media (max-width: 760px) { .chat { left: 156px; right: 12px; bottom: 116px; width: auto; transform: none; } }
