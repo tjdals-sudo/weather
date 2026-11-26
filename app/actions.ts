@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { adminClient, emailOf, sessionClient } from '@/lib/supabase'
 import { CHARACTERS } from '@/components/Character'
 
-const ADMIN_USERNAME = 'jonh'
+const ADMIN_USERNAME = 'john'
 
 const fail = (path: string, msg: string): never => redirect(`${path}?error=${encodeURIComponent(msg)}`)
 
