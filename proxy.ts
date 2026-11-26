@@ -20,8 +20,8 @@ export async function proxy(request: NextRequest) {
   )
   const { data } = await supabase.auth.getUser()
   // 로그인 여부에 따른 이동은 여기서만 한다 (화면 렌더링 전의 진짜 HTTP 이동)
-  const onLogin = request.nextUrl.pathname === '/login'
-  if (!data.user === onLogin) return response
+  const guestPage = ['/login', '/signup'].includes(request.nextUrl.pathname)
+  if (!data.user === guestPage) return response
   const url = request.nextUrl.clone()
   url.pathname = data.user ? '/' : '/login'
   url.search = ''
