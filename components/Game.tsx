@@ -9,6 +9,7 @@ import { MAX_LEVEL, STAGE_NAMES, STAGE_START, stageOf, xpToNext } from '@/lib/le
 import {
   BRIDGES, BUILDINGS, CANAL, CANAL_HALF, H, HY, PARK, PATH_X, PATH_Y, POND, ROAD, SIDE, SPAWN, TREES, VX, W,
   blocked, carSize, insideCar, pushOut, ringLength, ringPos, rng, type Building, type Tree,
+  inReach,
 } from '@/lib/world'
 
 type Profile = { id: string; is_admin: boolean; nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
@@ -306,7 +307,7 @@ function drawCar(g: G, car: Car, p: { x: number; y: number; angle: number }) {
   g.restore()
 }
 
-type Body = { x: number; y: number; face: number; walk: number; z: number; vz: number; act: { kind: Act; t: number } | null; say: string; sayUntil: number }
+type Body = { x: number; y: number; face: number; walk: number; z: number; vz: number; act: { kind: Act; t: number; hit?: boolean } | null; say: string; sayUntil: number }
 // 다른 사람: 받은 위치(tx, ty)를 향해 부드럽게 따라간다
 type Remote = Body & { tx: number; ty: number; nickname: string; character: string; stage: number }
 
@@ -428,11 +429,23 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
 
     const me: Body = { x: SPAWN.x, y: SPAWN.y, face: 1, walk: 0, z: 0, vz: 0, act: null, say: '', sayUntil: 0 }
     const others = new Map<string, Remote>()
+    // 맞으면 튀어나오는 동전. 보여주기용이라 각자 화면에서 따로 계산한다 (추가 전송 없음)
+    const coins: { x: number; y: number; z: number; vx: number; vy: number; vz: number; t: number }[] = []
+    const strike = (a: Body, targets: [Body, number][]) => {
+      const dir = a.act!.kind === 'L' ? -1 : a.act!.kind === 'R' ? 1 : a.face
+      for (const [b, st] of targets) {
+        if (b === a || !inReach(a.x, a.y, dir, b.x, b.y)) continue
+        for (let i = 0; i < 10; i++) {
+          const ang = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 110
+          coins.push({ x: b.x, y: b.y, z: tallOf(st) * 0.5, vx: Math.cos(ang) * sp + dir * 50, vy: Math.sin(ang) * sp * 0.6, vz: 260 + Math.random() * 220, t: 0 })
+        }
+      }
+    }
 
     // shortcut: 누구나 들어올 수 있는 공개 채널이라 보낸 사람 id를 속일 수 있다. 지인끼리만 쓰는 동안은 충분하고, 공개 서비스로 가면 비공개 채널 + RLS로 올린다
     const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
     const channel = supabase.channel('songdo', { config: { broadcast: { self: false }, presence: { key: profile.id } } })
-    let live = false, sentAt = 0, sentX = me.x, sentY = me.y, sentFace = me.face, chatAt = 0
+    let live = false, sentAt = 0, sentX = me.x, sentY = me.y, sentFace = me.face, chatAt = 0, hitAt = -1000
     const send = (event: string, payload: Record<string, unknown>) => { if (live) channel.send({ type: 'broadcast', event, payload: { id: profile.id, ...payload } }) }
     const sendPos = () => { sentAt = performance.now(); sentX = me.x; sentY = me.y; sentFace = me.face; send('pos', { x: Math.round(me.x), y: Math.round(me.y), f: me.face }) }
     const from = (payload: Record<string, unknown>) => (typeof payload.id === 'string' && payload.id !== profile.id ? others.get(payload.id) : undefined)
@@ -465,7 +478,7 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
         const o = from(payload), kind = payload.k
         if (!o) return
         if (kind === 'J') { if (o.z === 0) o.vz = 430 }
-        else if (kind === 'L' || kind === 'R' || kind === 'H') o.act = { kind, t: 0 }
+        else if ((kind === 'L' || kind === 'R' || kind === 'H') && !o.act) o.act = { kind, t: 0 }
       })
       .on('broadcast', { event: 'chat' }, ({ payload }) => {
         const o = from(payload), said = text(payload.t, 60)
@@ -484,7 +497,11 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
 
     const doAct = (kind: Act) => {
       if (kind === 'J') { if (me.z !== 0) return; me.vz = 430 }
-      else me.act = { kind, t: 0 }
+      else {
+        const now = performance.now()
+        if (now - hitAt < 1000) return // 펀치·박치기는 1초에 한 번
+        hitAt = now; me.act = { kind, t: 0 }
+      }
       send('act', { k: kind })
     }
     actRef.current = doAct
@@ -566,6 +583,15 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
         o.walk = gap > 3 ? o.walk + dt * 11 : 0
         stepBody(o, dt)
       }
+      // 동작이 절반쯤 지난 타격 순간에 맞은 사람에게서 동전이 튄다
+      const bodies: [Body, number][] = [[me, stage], ...[...others.values()].map((o): [Body, number] => [o, o.stage])]
+      for (const [b] of bodies) if (b.act && !b.act.hit && b.act.t > ACT_TIME / 2) { b.act.hit = true; strike(b, bodies) }
+      for (let i = coins.length - 1; i >= 0; i--) {
+        const c = coins[i]
+        c.t += dt; c.x += c.vx * dt; c.y += c.vy * dt; c.z += c.vz * dt; c.vz -= 1500 * dt
+        if (c.z < 0) { c.z = 0; c.vz *= -0.45; c.vx *= 0.6; c.vy *= 0.6 }
+        if (c.t > 1.3) coins.splice(i, 1)
+      }
       // 내 위치 전송: 움직였을 때만, 사람이 많을수록 드물게 (전체가 무료 한도인 초당 100건을 넘지 않도록 약 60건에 맞춘다)
       const people = others.size + 1, every = Math.max(200, Math.min(2000, (people * people * 1000) / 60))
       if (people > 1 && now - sentAt > every && (Math.hypot(me.x - sentX, me.y - sentY) > 1 || me.face !== sentFace)) sendPos()
@@ -590,6 +616,12 @@ export default function Game({ profile, error }: { profile: Profile; error?: str
       items.push({ base: me.y, x0: 0, y0: 0, x1: 0, y1: 0, draw: () => drawAvatar(g, imageOf(profile.character, stage), me, stage) })
       items.sort((a, b) => a.base - b.base)
       for (const item of items) item.draw()
+      for (const c of coins) {
+        g.globalAlpha = Math.min(1, (1.3 - c.t) * 4)
+        g.fillStyle = '#ffd23a'; g.strokeStyle = '#8a5a00'; g.lineWidth = 1.5
+        g.beginPath(); g.ellipse(c.x, c.y - c.z, 6 * Math.abs(Math.cos(c.t * 14)) + 1.5, 6, 0, 0, 7); g.fill(); g.stroke()
+      }
+      g.globalAlpha = 1
 
       // 이름표: 건물과 내 캐릭터
       g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '700 13px system-ui, sans-serif'

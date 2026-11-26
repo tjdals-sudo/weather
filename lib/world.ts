@@ -143,3 +143,9 @@ export function pushOut(px: number, py: number, car: { x: number; y: number; ang
   const ma = pa < pc ? (along < 0 ? -1 : 1) * (pa + 0.5) : 0, mc = pa < pc ? 0 : (across < 0 ? -1 : 1) * (pc + 0.5)
   return { x: ma * c - mc * s, y: ma * s + mc * c }
 }
+
+// 펀치·박치기가 닿는 범위: 때리는 쪽(dir) 앞으로 95, 위아래로 45 안
+export const inReach = (ax: number, ay: number, dir: number, tx: number, ty: number) => {
+  const ahead = (tx - ax) * dir
+  return ahead > 0 && ahead < 95 && Math.abs(ty - ay) < 45
+}

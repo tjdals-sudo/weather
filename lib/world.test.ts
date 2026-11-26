@@ -74,3 +74,11 @@ test('밀어내기: 차체 안의 점은 어느 각도에서든 차 밖으로 �
   }
   assert.equal(pushOut(500, 500, { x: 300, y: 300, angle: 0 }, false), null)
 })
+
+test('펀치는 바라보는 쪽 가까운 상대에게만 닿는다', async () => {
+  const { inReach } = await import('./world.ts')
+  assert.ok(inReach(100, 100, 1, 150, 110))
+  assert.ok(!inReach(100, 100, -1, 150, 110)) // 등 뒤
+  assert.ok(!inReach(100, 100, 1, 250, 100)) // 너무 멂
+  assert.ok(!inReach(100, 100, 1, 150, 160)) // 위아래로 어긋남
+})
