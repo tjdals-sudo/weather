@@ -99,3 +99,6 @@ label small { font-size: 12px; margin-left: 8px; }
 /* 새끼 단계는 그림 틀의 아래쪽 절반만 차지하므로 그 부분만 보여준다 */
 .baby { height: 104px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
 @media (max-width: 600px) { .tip { left: 156px; right: 12px; transform: none; white-space: normal; font-size: 12px; } }
+.pad { position: absolute; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(2, auto); gap: 6px; }
+.pad button { background: rgba(8, 9, 11, .78); color: var(--text); border: 2px solid rgba(255, 255, 255, .14); min-width: 76px; min-height: 44px; }
+@media (max-width: 600px) { .tip { display: none; } }

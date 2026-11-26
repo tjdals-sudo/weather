@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { BRIDGES, BUILDINGS, HY, POND, ROAD, SIDE, SPAWN, TREES, VX, W, H, blocked, canalX, insideCar, ringLength, ringPos } from './world.ts'
+import { BRIDGES, BUILDINGS, HY, POND, ROAD, SIDE, SPAWN, TREES, VX, W, H, blocked, canalX, insideCar, pushOut, ringLength, ringPos } from './world.ts'
 
 test('시작 위치와 도로는 걸을 수 있다', () => {
   assert.equal(blocked(SPAWN.x, SPAWN.y), false)
@@ -61,4 +61,16 @@ test('차체 판정: 차가 어느 방향을 보든 차체 안쪽만 막는다',
   assert.equal(insideCar(125, 100, south, false), false)
   assert.equal(insideCar(150, 100, east, true), true) // 버스는 더 길다
   assert.equal(insideCar(150, 100, east, false), false)
+})
+
+test('밀어내기: 차체 안의 점은 어느 각도에서든 차 밖으로 나온다', () => {
+  for (const angle of [0, Math.PI / 2, Math.PI, 0.7, -2.1]) for (const bus of [false, true]) {
+    const car = { x: 300, y: 300, angle }
+    for (let x = 240; x <= 360; x += 7) for (let y = 240; y <= 360; y += 7) {
+      const p = pushOut(x, y, car, bus)
+      assert.equal(p !== null, insideCar(x, y, car, bus))
+      if (p) assert.equal(insideCar(x + p.x, y + p.y, car, bus), false)
+    }
+  }
+  assert.equal(pushOut(500, 500, { x: 300, y: 300, angle: 0 }, false), null)
 })

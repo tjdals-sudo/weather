@@ -6,7 +6,7 @@ import Character, { spriteUrl } from '@/components/Character'
 import { MAX_LEVEL, STAGE_NAMES, STAGE_START, stageOf, xpToNext } from '@/lib/level'
 import {
   BRIDGES, BUILDINGS, CANAL, CANAL_HALF, H, HY, PARK, PATH_X, PATH_Y, POND, ROAD, SIDE, SPAWN, TREES, VX, W,
-  blocked, carSize, insideCar, ringLength, ringPos, rng, type Building, type Tree,
+  blocked, carSize, insideCar, pushOut, ringLength, ringPos, rng, type Building, type Tree,
 } from '@/lib/world'
 
 type Profile = { nickname: string; character: string; level: number; xp: number; focus: number; memory: number; mood: number; energy: number }
@@ -15,6 +15,12 @@ type G = CanvasRenderingContext2D
 const STATS = [['focus', '집중력'], ['memory', '기억력'], ['mood', '기분'], ['energy', '에너지']] as const
 const HK = 0.5 // 건물 높이를 화면에서 얼마나 세워 보일지
 const SPEED = 230
+const BODY = 22 // 발 위로 이만큼의 몸통도 차에 부딪힌다 (캐릭터 그림이 차 위에 겹쳐 보이지 않게)
+const ACT_TIME = 0.24
+type Act = 'L' | 'R' | 'H' | 'J' // 왼손 펀치, 오른손 펀치, 박치기, 점프
+
+// 맵에서 보이는 캐릭터 키 (단계가 오를수록 크다)
+const tallOf = (stage: number) => [0.5, 0.6, 0.7, 0.8, 0.9, 1][stage] * 100
 
 function makeCanvas(w: number, h: number) {
   const c = document.createElement('canvas')
@@ -302,6 +308,7 @@ export default function Game({ profile }: { profile: Profile }) {
   const view = useRef<HTMLCanvasElement>(null)
   const mini = useRef<HTMLCanvasElement>(null)
   const dot = useRef<HTMLElement>(null)
+  const actRef = useRef<(kind: Act) => void>(() => {})
   const [sheet, setSheet] = useState(false)
   const stage = stageOf(profile.level)
   const need = xpToNext(profile.level)
@@ -330,7 +337,12 @@ export default function Game({ profile }: { profile: Profile }) {
       { base: POND.y + 70, x0: POND.x - 160, y0: POND.y - 150, x1: POND.x + 160, y1: POND.y + 80, draw: () => g.drawImage(tribowl, POND.x - 160, POND.y - 150) },
     ]
 
-    const me = { x: SPAWN.x, y: SPAWN.y, face: 1, walk: 0 }
+    const me = { x: SPAWN.x, y: SPAWN.y, face: 1, walk: 0, z: 0, vz: 0, act: null as { kind: Act; t: number } | null }
+    const doAct = (kind: Act) => {
+      if (kind === 'J') { if (me.z === 0) me.vz = 430 }
+      else me.act = { kind, t: 0 }
+    }
+    actRef.current = doAct
     const keys = new Set<string>()
     let stick: { ox: number; oy: number; dx: number; dy: number } | null = null
     let vw = 0, vh = 0, dpr = 1, zoom = 1, raf = 0, last = performance.now()
@@ -342,8 +354,11 @@ export default function Game({ profile }: { profile: Profile }) {
       zoom = Math.max(0.85, Math.min(1.15, Math.min(vw, vh * 1.3) / 820)) // 폰에서도 캐릭터가 너무 작아지지 않게
     }
     const down = (e: KeyboardEvent) => {
-      if (e.key.startsWith('Arrow')) e.preventDefault()
-      keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key)
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
+      if (key.startsWith('Arrow') || key === ' ') e.preventDefault()
+      const kind = ({ ' ': 'J', a: 'L', s: 'H', d: 'R' } as Record<string, Act>)[key]
+      if (kind && !e.repeat && !(e.target instanceof HTMLInputElement)) doAct(kind)
+      keys.add(key)
     }
     const up = (e: KeyboardEvent) => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key)
     const clear = () => keys.clear()
@@ -355,35 +370,53 @@ export default function Game({ profile }: { profile: Profile }) {
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
 
-      // 차: 바로 앞에 플레이어가 있으면 선다
+      // 차: 자기 차로 앞쪽 구역에 플레이어(발 또는 몸통)가 있거나 앞차가 가까우면 선다. 옆 차로는 상관없다
       const carPos = cars.map((car) => {
-        // 차 중심부터 앞쪽으로, 자기 차로 폭만큼의 구역에 플레이어가 있거나 앞차가 가까우면 선다 (옆 차로는 상관없다)
         const { len: cl, wid: cwid } = carSize(car.bus), len = ringLength(car.d), at = ringPos(car.d, car.s, car.cw)
-        const dx = me.x - at.x, dy = me.y - at.y
-        const along = dx * Math.cos(at.angle) + dy * Math.sin(at.angle), across = Math.abs(-dx * Math.sin(at.angle) + dy * Math.cos(at.angle))
+        let near = Infinity
+        for (const oy of [0, BODY]) {
+          const dx = me.x - at.x, dy = me.y - oy - at.y
+          const along = dx * Math.cos(at.angle) + dy * Math.sin(at.angle), across = Math.abs(-dx * Math.sin(at.angle) + dy * Math.cos(at.angle))
+          if (along > 0 && across < cwid / 2 + 11) near = Math.min(near, along) // 충돌 폭(9)보다 조금만 넓게: 옆에 선 사람 때문에 서 있지 않도록
+        }
         const jam = cars.some((o) => o !== car && o.d === car.d && (((o.s - car.s) % len) + len) % len < carSize(o.bus).len / 2 + cl / 2 + 18 + car.v * 0.3)
-        const stop = jam || (along > 0 && along < cl / 2 + 44 + car.v * 0.3 && across < cwid / 2 + 14)
-        car.v += ((stop ? 0 : car.max) - car.v) * Math.min(1, dt * 6)
+        if (near < cl / 2 + 20) car.v = 0 // 코앞이면 급정거
+        else car.v += ((jam || near < cl / 2 + 50 + car.v * 0.3 ? 0 : car.max) - car.v) * Math.min(1, dt * 6)
         car.s += car.v * dt
         return ringPos(car.d, car.s, car.cw)
       })
+      // 그래도 차체와 겹치면(달리는 차 옆구리에 뛰어든 경우 등) 차 밖으로 밀려난다
+      const touching = (x: number, y: number) => cars.some((car, i) => insideCar(x, y, carPos[i], car.bus) || insideCar(x, y - BODY, carPos[i], car.bus))
+      cars.forEach((car, i) => {
+        for (const oy of [0, BODY]) {
+          const push = pushOut(me.x, me.y - oy, carPos[i], car.bus)
+          if (push && !blocked(me.x + push.x, me.y + push.y)) { me.x += push.x; me.y += push.y }
+        }
+      })
 
-      // 이동: 키보드와 화면 드래그(가상 조이스틱)
-      let ix = (keys.has('ArrowRight') || keys.has('d') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('a') ? 1 : 0)
-      let iy = (keys.has('ArrowDown') || keys.has('s') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('w') ? 1 : 0)
+      // 이동: 방향키와 화면 드래그(가상 조이스틱)
+      let ix = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0)
+      let iy = (keys.has('ArrowDown') ? 1 : 0) - (keys.has('ArrowUp') ? 1 : 0)
       if (stick && Math.hypot(stick.dx, stick.dy) > 8) { ix = stick.dx / 60; iy = stick.dy / 60 }
       const mag = Math.hypot(ix, iy)
       if (mag > 1) { ix /= mag; iy /= mag }
       if (mag > 0.05) {
         const nx = me.x + ix * SPEED * dt, ny = me.y + iy * SPEED * dt
-        // 차는 통과할 수 없다. 이미 차체와 겹쳐 있으면(차가 밀고 들어온 경우) 빠져나올 수 있게 풀어 준다
-        const hit = (x: number, y: number) => cars.some((car, i) => insideCar(x, y, carPos[i], car.bus))
-        const free = hit(me.x, me.y)
-        if (!blocked(nx, me.y) && (free || !hit(nx, me.y))) me.x = nx
-        if (!blocked(me.x, ny) && (free || !hit(me.x, ny))) me.y = ny
+        // 밀어내기가 벽에 막혀 차에 낀 채라면 움직임을 풀어 준다 (갇힘 방지)
+        const stuck = touching(me.x, me.y)
+        if (!blocked(nx, me.y) && (stuck || !touching(nx, me.y))) me.x = nx
+        if (!blocked(me.x, ny) && (stuck || !touching(me.x, ny))) me.y = ny
         if (Math.abs(ix) > 0.1) me.face = ix > 0 ? 1 : -1
         me.walk += dt * 11
       } else me.walk = 0
+
+      // 점프와 동작
+      if (me.z > 0 || me.vz > 0) {
+        me.z += me.vz * dt
+        me.vz -= 1500 * dt
+        if (me.z <= 0) { me.z = 0; me.vz = 0 }
+      }
+      if (me.act && (me.act.t += dt) > ACT_TIME) me.act = null
 
       // 카메라
       const sw = vw / zoom, sh = vh / zoom
@@ -401,11 +434,40 @@ export default function Game({ profile }: { profile: Profile }) {
       items.push({
         base: me.y, x0: 0, y0: 0, x1: 0, y1: 0,
         draw: () => {
-          g.fillStyle = 'rgba(0,0,0,.32)'
-          g.beginPath(); g.ellipse(me.x, me.y, 17, 6.5, 0, 0, 7); g.fill()
+          const air = Math.min(1, me.z / 70)
+          g.fillStyle = `rgba(0,0,0,${0.32 - air * 0.14})`
+          g.beginPath(); g.ellipse(me.x, me.y, 17 - air * 5, 6.5 - air * 2, 0, 0, 7); g.fill()
           if (!hero.complete || !hero.naturalWidth) return
-          const h = 104, w = (h * hero.naturalWidth) / hero.naturalHeight, bob = Math.abs(Math.sin(me.walk)) * 4
-          g.save(); g.translate(me.x, me.y - bob); g.scale(me.face, 1); g.drawImage(hero, -w / 2, -h + 5, w, h); g.restore()
+          const h = 104, w = (h * hero.naturalWidth) / hero.naturalHeight, bob = me.z ? 0 : Math.abs(Math.sin(me.walk)) * 4
+          // 그림이 한 장이라 팔다리는 못 움직인다. 몸을 내밀고 기울이고, 주먹은 따로 그려 동작을 표현한다
+          const kind = me.act?.kind, swing = me.act ? Math.sin((me.act.t / ACT_TIME) * Math.PI) : 0
+          const dir = kind === 'L' ? -1 : kind === 'R' ? 1 : me.face
+          const fy = me.y - bob - me.z, tall = tallOf(stage)
+          g.save()
+          g.translate(me.x + dir * swing * (kind === 'H' ? 16 : 7), fy + (kind === 'H' ? swing * 5 : 0))
+          if (kind === 'H') g.rotate(dir * swing * 0.5)
+          g.scale(me.face, 1)
+          g.drawImage(hero, -w / 2, -h + 5, w, h)
+          g.restore()
+          if (kind === 'L' || kind === 'R') {
+            const px = me.x + dir * (tall * 0.22 + 8 + swing * 30), py = fy - tall * 0.42
+            g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 3; g.lineCap = 'round'
+            g.beginPath()
+            for (const o of [-7, 0, 7]) { g.moveTo(px - dir * 14, py + o); g.lineTo(px - dir * (20 + swing * 16), py + o) }
+            g.stroke()
+            g.fillStyle = '#fff'; g.strokeStyle = '#1c1b22'; g.lineWidth = 3
+            g.beginPath(); g.arc(px, py, 10, 0, 7); g.fill(); g.stroke()
+            g.beginPath(); g.moveTo(px + dir * 3, py - 6); g.lineTo(px + dir * 3, py + 6); g.stroke()
+            g.lineCap = 'butt'
+          }
+          if (kind && swing > 0.75) {
+            // 타격 순간의 별 모양 섬광
+            const sx = me.x + dir * (kind === 'H' ? tall * 0.45 + 22 : tall * 0.22 + 54), sy = fy - tall * (kind === 'H' ? 0.75 : 0.42)
+            g.fillStyle = '#ffe14a'; g.strokeStyle = '#1c1b22'; g.lineWidth = 2
+            g.beginPath()
+            for (let i = 0; i < 16; i++) { const r = i % 2 ? 6 : 15, t = (i / 16) * Math.PI * 2; g.lineTo(sx + Math.cos(t) * r, sy + Math.sin(t) * r) }
+            g.closePath(); g.fill(); g.stroke()
+          }
         },
       })
       items.sort((a, b) => a.base - b.base)
@@ -419,7 +481,7 @@ export default function Game({ profile }: { profile: Profile }) {
         g.fillStyle = 'rgba(8,9,11,.8)'; g.beginPath(); g.roundRect(tx - tw / 2, ty - 11, tw, 22, 4); g.fill()
         g.fillStyle = '#f5c518'; g.fillText(b.label, tx, ty + 1)
       }
-      const top = me.y - 14 - [0.5, 0.6, 0.7, 0.8, 0.9, 1][stage] * 100 // 단계별 키만큼 위에
+      const top = me.y - me.z - 14 - tallOf(stage)
       g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(profile.nickname, me.x, top)
       g.fillStyle = '#fff'; g.fillText(profile.nickname, me.x, top)
 
@@ -476,7 +538,12 @@ export default function Game({ profile }: { profile: Profile }) {
         <canvas ref={mini} width={264} height={297} />
         <i ref={dot} />
       </div>
-      <p className="card tip">방향키·WASD 또는 화면 드래그로 이동</p>
+      <p className="card tip">방향키·드래그 이동 · 스페이스 점프 · A 왼펀치 · S 박치기 · D 오른펀치</p>
+      <div className="pad">
+        {([['L', '왼펀치'], ['H', '박치기'], ['R', '오른펀치'], ['J', '점프']] as const).map(([kind, label]) => (
+          <button key={kind} className="small" onPointerDown={() => actRef.current(kind)}>{label}</button>
+        ))}
+      </div>
 
       {sheet && (
         <div className="sheet" role="dialog" aria-modal="true" aria-label="프로필">

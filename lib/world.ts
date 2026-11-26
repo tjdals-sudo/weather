@@ -133,3 +133,13 @@ export function insideCar(px: number, py: number, car: { x: number; y: number; a
   const along = dx * Math.cos(car.angle) + dy * Math.sin(car.angle), across = -dx * Math.sin(car.angle) + dy * Math.cos(car.angle)
   return Math.abs(along) < len / 2 + margin && Math.abs(across) < wid / 2 + margin
 }
+
+// 차체에 파묻힌 점을 가장 가까운 바깥으로 밀어내는 이동량. 겹치지 않으면 null
+export function pushOut(px: number, py: number, car: { x: number; y: number; angle: number }, bus: boolean, margin = 9) {
+  const { len, wid } = carSize(bus), dx = px - car.x, dy = py - car.y, c = Math.cos(car.angle), s = Math.sin(car.angle)
+  const along = dx * c + dy * s, across = -dx * s + dy * c
+  const pa = len / 2 + margin - Math.abs(along), pc = wid / 2 + margin - Math.abs(across)
+  if (pa <= 0 || pc <= 0) return null
+  const ma = pa < pc ? (along < 0 ? -1 : 1) * (pa + 0.5) : 0, mc = pa < pc ? 0 : (across < 0 ? -1 : 1) * (pc + 0.5)
+  return { x: ma * c - mc * s, y: ma * s + mc * c }
+}
